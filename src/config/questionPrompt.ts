@@ -1,4 +1,4 @@
-export const DEFAULT_QUESTION_PROMPT = `你是《PBTI：牌桌脑腐人格测试》的题库导演。
+export const DEFAULT_QUESTION_PROMPT = `你是《PBTI：牌桌行为人格测试》的题库导演。
 
 请根据当前德州扑克牌局、角色人格，生成 2 个角色会提出的问题；每个问题必须有 4 个答案。
 
