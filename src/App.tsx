@@ -21,6 +21,7 @@ function App() {
   const [result, setResult] = useState<DecisionResult | null>(null);
   const [destinyRoll, setDestinyRoll] = useState<number | null>(null);
   const [activeQuestionIndices, setActiveQuestionIndices] = useState<number[]>([]);
+  const [forceEasterEgg, setForceEasterEgg] = useState(false);
 
   const activeQuestions = useMemo(() => {
     if (!character) return [];
@@ -63,6 +64,22 @@ function App() {
 
   function revealDecision() {
     if (!character || !scenario || !answeredAllQuestions) return;
+
+    if (forceEasterEgg || Math.random() < 0.05) {
+      setForceEasterEgg(false);
+      setResult({
+        action: "Fold",
+        sizing: "Fold",
+        scoreBreakdown: { checkScore: 0, callScore: 0, raiseScore: 0 },
+        voiceLine: `宇宙给你递了一张牌：弃牌。${forceEasterEgg ? "彩蛋模式已确认。" : "这不是懦弱，是命运。"}`,
+        reasoning: `你触发了隐藏彩蛋（5% 概率${forceEasterEgg ? "，本次为强制触发" : ""}）！无论你的答案是什么，${character.name} 选择了弃牌。`,
+        riskWarning: "彩蛋仅用于娱乐，与真实牌技无关。",
+        personalityBias: "彩蛋模式：今天宇宙不让你入池。",
+        easterEgg: true,
+      });
+      return;
+    }
+
     setResult(generateDecision(character, scenario, selectedAnswers, destinyRoll ?? undefined));
   }
 
@@ -78,12 +95,17 @@ function App() {
     setActiveQuestionIndices(pickQuestions(character));
   }
 
+  function activateEasterEgg() {
+    setForceEasterEgg(true);
+  }
+
   function switchToRandomCharacter() {
     const activeCharacters = characters.filter((c) => c.id !== "soul-reader" && c.id !== "gto-tank");
     chooseCharacter(randomItem(activeCharacters));
   }
 
   function goHome() {
+    setForceEasterEgg(false);
     setPage("home");
     setCharacter(null);
     setScenario(null);
@@ -118,7 +140,7 @@ function App() {
           </header>
 
           <div className="flex flex-1 items-center py-8">
-            {page === "home" && <HomePage onSelectCharacter={chooseCharacter} />}
+            {page === "home" && <HomePage onSelectCharacter={chooseCharacter} onEasterEgg={activateEasterEgg} />}
             {page === "result" && character && scenario && (
               <ResultFlow
                 character={character}
@@ -148,7 +170,7 @@ function App() {
 
 // ====================== HomePage ======================
 
-function HomePage({ onSelectCharacter }: { onSelectCharacter: (character: Character) => void }) {
+function HomePage({ onSelectCharacter, onEasterEgg }: { onSelectCharacter: (character: Character) => void; onEasterEgg: () => void }) {
   const featuredCharacters = characters.filter((item) => item.avatarImage).slice(0, 4);
 
   return (
@@ -200,6 +222,14 @@ function HomePage({ onSelectCharacter }: { onSelectCharacter: (character: Charac
           <ApiKeyIndicator suffix={__OPENAI_KEY_SUFFIX__} />
         </div>
       )}
+      <div className="text-center">
+        <button
+          onClick={onEasterEgg}
+          className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-600 transition hover:border-purple-500 hover:text-purple-400"
+        >
+          🥚 彩蛋模式
+        </button>
+      </div>
     </section>
   );
 }
@@ -355,8 +385,7 @@ function ResultFlow({
                 ) : (
                   <div className="mt-2 flex items-center gap-2 text-sm text-zinc-400">
                     <span className="font-bold text-lime-400">天命</span>
-                    <span className="text-lg font-black text-amber-100">{destinyRoll ?? "-"}</span>
-                    <span className="text-xs text-zinc-500">/100</span>
+                    <span className="text-zinc-500">· 随机驱动</span>
                   </div>
                 )}
               </div>

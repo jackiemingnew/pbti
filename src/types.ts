@@ -67,7 +67,7 @@ export type PokerScenario = {
 };
 
 export type DecisionResult = {
-  action: "Check" | "Call" | "Raise";
+  action: "Check" | "Call" | "Raise" | "Fold";
   sizing: string;
   scoreBreakdown: {
     checkScore: number;
@@ -79,4 +79,5 @@ export type DecisionResult = {
   riskWarning: string;
   personalityBias: string;
   destinyRoll?: number;
+  easterEgg?: boolean;
 };
