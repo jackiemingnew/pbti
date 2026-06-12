@@ -66,7 +66,6 @@ function App() {
     if (!character || !scenario || !answeredAllQuestions) return;
 
     if (forceEasterEgg || Math.random() < 0.05) {
-      setForceEasterEgg(false);
       setResult({
         action: "Fold",
         sizing: "Fold",
@@ -95,8 +94,8 @@ function App() {
     setActiveQuestionIndices(pickQuestions(character));
   }
 
-  function activateEasterEgg() {
-    setForceEasterEgg(true);
+  function toggleEasterEgg() {
+    setForceEasterEgg((prev) => !prev);
   }
 
   function switchToRandomCharacter() {
@@ -105,7 +104,6 @@ function App() {
   }
 
   function goHome() {
-    setForceEasterEgg(false);
     setPage("home");
     setCharacter(null);
     setScenario(null);
@@ -140,7 +138,7 @@ function App() {
           </header>
 
           <div className="flex flex-1 items-center py-8">
-            {page === "home" && <HomePage onSelectCharacter={chooseCharacter} onEasterEgg={activateEasterEgg} />}
+            {page === "home" && <HomePage onSelectCharacter={chooseCharacter} easterEggActive={forceEasterEgg} onToggleEasterEgg={toggleEasterEgg} />}
             {page === "result" && character && scenario && (
               <ResultFlow
                 character={character}
@@ -170,7 +168,7 @@ function App() {
 
 // ====================== HomePage ======================
 
-function HomePage({ onSelectCharacter, onEasterEgg }: { onSelectCharacter: (character: Character) => void; onEasterEgg: () => void }) {
+function HomePage({ onSelectCharacter, easterEggActive, onToggleEasterEgg }: { onSelectCharacter: (character: Character) => void; easterEggActive: boolean; onToggleEasterEgg: () => void }) {
   const featuredCharacters = characters.filter((item) => item.avatarImage).slice(0, 4);
 
   return (
@@ -222,13 +220,19 @@ function HomePage({ onSelectCharacter, onEasterEgg }: { onSelectCharacter: (char
           <ApiKeyIndicator suffix={__OPENAI_KEY_SUFFIX__} />
         </div>
       )}
-      <div className="text-center">
-        <button
-          onClick={onEasterEgg}
-          className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-600 transition hover:border-purple-500 hover:text-purple-400"
+      <div className="flex justify-center">
+        <label
+          className="inline-flex cursor-pointer items-center gap-2 text-xs transition hover:text-purple-400"
+          style={{ color: easterEggActive ? "#a855f7" : "#52525b" }}
         >
-          🥚 彩蛋模式
-        </button>
+          <input
+            type="checkbox"
+            checked={easterEggActive}
+            onChange={onToggleEasterEgg}
+            className="h-3.5 w-3.5 accent-purple-500"
+          />
+          <span>🥚 彩蛋模式（强制弃牌）</span>
+        </label>
       </div>
     </section>
   );
