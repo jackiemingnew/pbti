@@ -1,8 +1,16 @@
-# 牌桌人格：一手入魂
+# PBTI：牌桌脑腐人格测试
 
 一个娱乐化的德州扑克人格决策小游戏。玩家选择一个虚构牌桌人格后，系统通过 OpenAI 生成本手题库，玩家回答后由本地决策引擎生成 Check / Call / Raise 建议。
 
-首页展示 PBTI 四角色入口；“测试识别”页面可读取并预览牌局图片，预留未来视觉模型识别牌局信息。
+游戏核心是 PBTI 三维：
+
+- 鸡：鸡瘾值，代表多想偷鸡、下注讲故事、主动 bet / raise / bluff。
+- 钱：钞能力，代表对筹码波动的承受力，以及愿不愿意用钱买剧情。
+- 术：技术流，代表范围、赔率、下注尺度、GTO/exploit 的理解。
+
+天命人悟空是三界之外角色，不显示基础三维；每手牌开始时生成 `destinyRoll`，通过 Destiny System 决定行动倾向。
+
+首页展示 PBTI 人格入口；“测试识别”页面可读取并预览牌局图片，预留未来视觉模型识别牌局信息。
 
 ## 技术栈
 
@@ -44,7 +52,7 @@ OPENAI_MODEL=gpt-4.1-mini
 
 该接口由服务端读取 `OPENAI_API_KEY`，不会把 key 暴露给浏览器。
 
-本地如果只用 `vite dev`，Vite 不会自动运行 Vercel API 函数；可以使用 Vercel 本地开发环境，或在页面里输入个人 key 作为兜底：
+本地 `vite dev` 已内置 `/api/generate-questions` 中间件，会读取 `.env.local`。如果服务端 API 不可用，也可以在页面里输入个人 key 作为兜底：
 
 - key 只保存在当前浏览器会话的 `sessionStorage`
 - 不提交到 GitHub
@@ -108,11 +116,14 @@ src/
     decisionEngine.ts
   services/
     questionApi.ts
+    questionFormat.ts
   config/
     questionPrompt.ts
   types.ts
 api/
   generate-questions.ts
+server/
+  openaiQuestions.ts
 public/
   avatars/
 ```

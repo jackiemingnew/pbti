@@ -39,15 +39,17 @@ export function CharacterCard({ character, selected, onSelect }: CharacterCardPr
 
       {character.stats ? (
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <StatBar label="胆" value={character.stats.courage} />
-          <StatBar label="术" value={character.stats.technique} />
-          <StatBar label="粮" value={character.stats.bankroll} />
-          <StatBar label="眼" value={character.stats.read} />
+          <StatBar label="鸡" value={character.stats.chicken} />
+          <StatBar label="钱" value={character.stats.money} />
+          <StatBar label="术" value={character.stats.skill} />
+          <div className="rounded-xl border border-amber-500/25 bg-zinc-900/70 px-3 py-2 text-xs leading-5 text-zinc-400">
+            PBTI 三维人格
+          </div>
         </div>
       ) : (
         <div className="mt-4 rounded-xl border border-amber-500/35 bg-zinc-900/80 p-4">
-          <p className="text-sm font-black text-amber-200">无四维属性</p>
-          <p className="mt-1 text-sm leading-6 text-zinc-400">只根据抽象问题和天命随机数行动。</p>
+          <p className="text-sm font-black text-amber-200">三界之外</p>
+          <p className="mt-1 text-sm leading-6 text-zinc-400">不显示鸡 / 钱 / 术，每手由 destinyRoll 驱动。</p>
         </div>
       )}
 

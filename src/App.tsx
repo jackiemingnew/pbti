@@ -13,19 +13,7 @@ import type { Answer, Character, DecisionResult, PokerScenario, Question } from 
 type Page = "home" | "select" | "scenario" | "result" | "imageTest";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
-
-const avatarGlyph = (id: string) =>
-  id === "destiny-fool"
-    ? "天"
-    : id === "gto-tank"
-      ? "♜"
-      : id === "boss-whale"
-        ? "♛"
-        : id === "soul-reader"
-          ? "☽"
-          : id === "bluff-assassin"
-            ? "♞"
-            : "♚";
+const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
 
 function App() {
   const [page, setPage] = useState<Page>("home");
@@ -33,6 +21,7 @@ function App() {
   const [scenario, setScenario] = useState<PokerScenario | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Answer[]>([]);
   const [result, setResult] = useState<DecisionResult | null>(null);
+  const [destinyRoll, setDestinyRoll] = useState<number | null>(null);
   const [reuseScenario, setReuseScenario] = useState(false);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [questionStatus, setQuestionStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
@@ -63,6 +52,7 @@ function App() {
     const nextScenario = reuseScenario && scenario ? scenario : randomItem(scenarios);
     setCharacter(nextCharacter);
     setScenario(nextScenario);
+    setDestinyRoll(nextCharacter.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
     setReuseScenario(false);
@@ -84,7 +74,7 @@ function App() {
 
   function revealDecision() {
     if (!character || !scenario || !answeredAllQuestions) return;
-    setResult(generateDecision(character, scenario, selectedAnswers));
+    setResult(generateDecision(character, scenario, selectedAnswers, destinyRoll ?? undefined));
     setPage("result");
   }
 
@@ -95,6 +85,7 @@ function App() {
     }
     const nextScenario = randomItem(scenarios);
     setScenario(nextScenario);
+    setDestinyRoll(character.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
     loadQuestionBank(character, nextScenario, questionPrompt);
@@ -105,6 +96,7 @@ function App() {
     setReuseScenario(Boolean(scenario));
     setSelectedAnswers([]);
     setResult(null);
+    setDestinyRoll(null);
     setPage("select");
   }
 
@@ -114,6 +106,7 @@ function App() {
     setScenario(null);
     setSelectedAnswers([]);
     setResult(null);
+    setDestinyRoll(null);
     setReuseScenario(false);
     setActiveQuestions([]);
     setQuestionStatus("idle");
@@ -156,8 +149,8 @@ function App() {
             <button onClick={goHome} className="flex items-center gap-3 text-left">
               <span className="grid h-11 w-11 place-items-center rounded-lg border border-amber-400/60 bg-zinc-950 text-xl text-amber-200 shadow-gold">♠</span>
               <span>
-                <span className="block text-sm font-black tracking-[0.24em] text-amber-500">POKER PERSONA</span>
-                <span className="block text-lg font-black text-amber-100">牌桌人格</span>
+                <span className="block text-sm font-black tracking-[0.24em] text-amber-500">PBTI TEST</span>
+                <span className="block text-lg font-black text-amber-100">牌桌脑腐人格</span>
               </span>
             </button>
             <div className="hidden rounded-full border border-amber-500/30 bg-zinc-950/70 px-4 py-2 text-sm font-bold text-amber-100 sm:block">
@@ -184,6 +177,7 @@ function App() {
                 apiKey={openAiApiKey}
                 questionStatus={questionStatus}
                 questionError={questionError}
+                destinyRoll={destinyRoll}
                 answeredAllQuestions={answeredAllQuestions}
                 onAnswer={answerQuestion}
                 onReveal={revealDecision}
@@ -231,13 +225,13 @@ function HomePage({
   return (
     <section className="grid w-full items-center gap-8 lg:grid-cols-[1fr_1fr]">
       <div className="max-w-3xl">
-        <p className="text-sm font-black uppercase tracking-[0.32em] text-amber-500">Medieval Poker Decision Game</p>
+        <p className="text-sm font-black uppercase tracking-[0.32em] text-amber-500">Poker Brainrot Type Indicator</p>
         <h1 className="mt-4 text-4xl font-black leading-tight text-amber-100 sm:text-6xl lg:text-7xl">
-          <span className="block">《牌桌人格：</span>
-          <span className="block">一手入魂》</span>
+          <span className="block">《PBTI：</span>
+          <span className="block">牌桌脑腐人格测试》</span>
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-zinc-300">
-          选择人格，让角色替你做出牌桌决策。这里没有真钱下注，也不是严肃求解器，只有胆量、读牌、筹码和一点牌桌戏剧性。
+          用鸡、钱、术三维测试你的牌桌脑回路。这里没有真钱下注，也不是严肃求解器，只有偷鸡欲、钞能力、技术流和一点命运玄学。
         </p>
         <div className="mt-6 max-w-2xl">
           <ApiKeyPanel apiKey={apiKey} onApiKeyChange={onApiKeyChange} compact />
@@ -262,7 +256,7 @@ function HomePage({
         <div className="absolute inset-4 rounded-[1.4rem] border border-amber-400/20" />
         <div className="relative z-10">
           <p className="text-sm font-bold text-amber-400">PBTI Characters</p>
-          <h2 className="mt-2 text-3xl font-black text-amber-100">四种牌桌人格</h2>
+          <h2 className="mt-2 text-3xl font-black text-amber-100">脑腐人格样本</h2>
           <div className="mt-5 grid grid-cols-2 gap-4">
             {featuredCharacters.map((item) => (
               <button
@@ -297,8 +291,8 @@ function CharacterSelectPage({
     <section className="w-full">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.3em] text-amber-500">Choose Persona</p>
-          <h1 className="mt-2 text-4xl font-black text-amber-100">选择你的牌桌人格</h1>
+          <p className="text-sm font-black uppercase tracking-[0.3em] text-amber-500">Choose PBTI</p>
+          <h1 className="mt-2 text-4xl font-black text-amber-100">选择你的脑腐人格</h1>
           {reuseScenarioTitle && <p className="mt-2 text-zinc-400">当前将用新角色重打：{reuseScenarioTitle}</p>}
         </div>
         <button
@@ -327,6 +321,7 @@ function ScenarioPage({
   apiKey,
   questionStatus,
   questionError,
+  destinyRoll,
   answeredAllQuestions,
   onAnswer,
   onReveal,
@@ -343,6 +338,7 @@ function ScenarioPage({
   apiKey: string;
   questionStatus: "idle" | "loading" | "ready" | "fallback";
   questionError: string;
+  destinyRoll: number | null;
   answeredAllQuestions: boolean;
   onAnswer: (questionIndex: number, answer: Answer) => void;
   onReveal: () => void;
@@ -360,6 +356,21 @@ function ScenarioPage({
         <p className="mt-5 text-sm font-bold text-amber-400">{character.archetype}</p>
         <h2 className="mt-1 text-3xl font-black text-amber-100">{character.name}</h2>
         <p className="mt-3 leading-7 text-zinc-300">{character.description}</p>
+        {character.stats ? (
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            <MiniStat label="鸡" value={character.stats.chicken} />
+            <MiniStat label="钱" value={character.stats.money} />
+            <MiniStat label="术" value={character.stats.skill} />
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-amber-500/35 bg-amber-400/10 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-500">Destiny System</p>
+            <p className="mt-1 text-3xl font-black text-amber-100">
+              {destinyRoll ?? "-"}<span className="ml-1 text-sm text-zinc-400">/100</span>
+            </p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">本手开始时随机生成，不属于 PBTI 基础三维。</p>
+          </div>
+        )}
         <button
           onClick={onChangeCharacter}
           className="mt-6 w-full rounded-xl border border-zinc-700 px-4 py-3 font-bold text-zinc-200 transition hover:border-amber-500 hover:bg-amber-500/10 hover:text-amber-100"
@@ -394,6 +405,18 @@ function ScenarioPage({
         </div>
       </div>
     </section>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-amber-500/30 bg-zinc-900/80 p-3">
+      <p className="text-xs font-black text-amber-400">{label}</p>
+      <p className="mt-1 text-2xl font-black text-amber-100">{value}</p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-200" style={{ width: `${value * 10}%` }} />
+      </div>
+    </div>
   );
 }
 

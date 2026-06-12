@@ -11,10 +11,9 @@ export type DecisionParams = {
 };
 
 export type DecisionModifier = Partial<DecisionParams> & {
-  courage?: number;
-  technique?: number;
-  bankroll?: number;
-  read?: number;
+  chicken?: number;
+  money?: number;
+  skill?: number;
   destinySeed?: number;
   raiseScoreBonus?: number;
   callScoreBonus?: number;
@@ -39,10 +38,9 @@ export type Character = {
   archetype: string;
   decisionMode?: "formula" | "destiny";
   stats?: {
-    courage: number;
-    technique: number;
-    bankroll: number;
-    read: number;
+    chicken: number;
+    money: number;
+    skill: number;
   };
   description: string;
   questions: Question[];
