@@ -61,6 +61,22 @@ VITE_OPENAI_MODEL=gpt-4.1-mini
 
 注意：浏览器兜底模式更适合个人项目和临时演示。用户输入的 key 会出现在自己浏览器发出的网络请求里，这是前端直连 API 的天然限制。
 
+### 本地 ClashX 代理
+
+如果本地服务端报 `fetch failed`，通常是 Node 服务没有走 ClashX 代理。可以在启动本地服务前设置：
+
+```bash
+HTTPS_PROXY=http://127.0.0.1:7890 npm run dev
+```
+
+或把下面这行加入被 Git 忽略的 `.env.local`：
+
+```bash
+HTTPS_PROXY=http://127.0.0.1:7890
+```
+
+Vercel 线上部署通常不需要设置 `HTTPS_PROXY`。
+
 ## GitHub / 静态部署
 
 构建：

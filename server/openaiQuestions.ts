@@ -9,7 +9,11 @@ export type QuestionBankInput = {
   scenario: PokerScenario;
 };
 
+let configuredProxyUrl = "";
+
 export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, character, scenario }: QuestionBankInput): Promise<Question[]> {
+  await configureOptionalProxy();
+
   const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -68,4 +72,17 @@ export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, ch
   }
 
   return questions;
+}
+
+async function configureOptionalProxy() {
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY || "";
+  if (!proxyUrl || configuredProxyUrl === proxyUrl) return;
+
+  try {
+    const { ProxyAgent, setGlobalDispatcher } = await import("undici");
+    setGlobalDispatcher(new ProxyAgent(proxyUrl));
+    configuredProxyUrl = proxyUrl;
+  } catch {
+    throw new Error("检测到代理环境变量，但缺少 undici 代理依赖。请重新安装依赖后再启动本地服务。");
+  }
 }
