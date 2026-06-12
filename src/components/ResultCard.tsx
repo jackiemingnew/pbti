@@ -1,9 +1,10 @@
-import type { Character, DecisionResult, PokerScenario } from "../types";
+import type { Answer, Character, DecisionResult, Question } from "../types";
 import { ActionChip } from "./ActionChip";
 
 type ResultCardProps = {
   character: Character;
-  scenario: PokerScenario;
+  questions: Question[];
+  selectedAnswers: Answer[];
   result: DecisionResult;
   onAgain: () => void;
   onChangeCharacter: () => void;
@@ -16,7 +17,7 @@ const bars = [
   ["Raise", "raiseScore", "bg-red-500"],
 ] as const;
 
-export function ResultCard({ character, scenario, result, onAgain, onChangeCharacter, onHome }: ResultCardProps) {
+export function ResultCard({ character, questions, selectedAnswers, result, onAgain, onChangeCharacter, onHome }: ResultCardProps) {
   const maxScore = Math.max(result.scoreBreakdown.checkScore, result.scoreBreakdown.callScore, result.scoreBreakdown.raiseScore, 1);
 
   return (
@@ -35,22 +36,45 @@ export function ResultCard({ character, scenario, result, onAgain, onChangeChara
           )}
         </div>
 
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.24em] text-amber-500">Final Decision</p>
-          <h2 className="mt-2 text-3xl font-black text-amber-100">{character.name}: {result.action}</h2>
-          <p className="mt-2 text-zinc-400">{scenario.title} · {scenario.heroHand} · {scenario.board}</p>
+        <div className="space-y-5">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.24em] text-amber-500">Final Decision</p>
+            <h2 className="mt-2 text-3xl font-black text-amber-100">{character.name}: {result.action}</h2>
+            <blockquote className="mt-4 rounded-2xl border-l-4 border-amber-400 bg-amber-400/10 p-4 text-lg font-bold text-amber-100">
+              “{result.voiceLine}”
+            </blockquote>
+          </div>
 
-          <blockquote className="mt-5 rounded-2xl border-l-4 border-amber-400 bg-amber-400/10 p-4 text-lg font-bold text-amber-100">
-            “{result.voiceLine}”
-          </blockquote>
+          {questions.length > 0 && selectedAnswers.filter(Boolean).length > 0 && (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-amber-400">你的回答</h3>
+              <div className="space-y-3">
+                {questions.map((q, qi) => {
+                  const answer = selectedAnswers[qi];
+                  return (
+                    <div key={q.id} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3">
+                      <p className="text-sm text-zinc-300">{q.text}</p>
+                      {answer ? (
+                        <p className="mt-1.5 text-sm font-bold text-amber-200">
+                          你选了: {answer.label}
+                        </p>
+                      ) : (
+                        <p className="mt-1.5 text-sm italic text-zinc-500">未回答</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3">
             <Info title="决策理由" body={result.reasoning} />
             <Info title="风险提示" body={result.riskWarning} />
             <Info title="人格偏差" body={result.personalityBias} />
           </div>
 
-          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
             <h3 className="font-black text-amber-100">分数拆解</h3>
             <div className="mt-3 space-y-3">
               {bars.map(([label, key, color]) => (
@@ -67,12 +91,12 @@ export function ResultCard({ character, scenario, result, onAgain, onChangeChara
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3">
             <button onClick={onAgain} className="rounded-xl bg-amber-400 px-5 py-3 font-black text-zinc-950 transition hover:scale-105 hover:bg-amber-300">
               再来一手
             </button>
             <button onClick={onChangeCharacter} className="rounded-xl border border-amber-500/60 px-5 py-3 font-bold text-amber-100 transition hover:bg-amber-500/15">
-              换个角色重打
+              随机人格
             </button>
             <button onClick={onHome} className="rounded-xl border border-zinc-700 px-5 py-3 font-bold text-zinc-200 transition hover:bg-zinc-800">
               回首页

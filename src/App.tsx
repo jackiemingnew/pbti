@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CharacterAvatar, CharacterCard } from "./components/CharacterCard";
+import { CharacterAvatar } from "./components/CharacterCard";
 import { ResultCard } from "./components/ResultCard";
 import { characters } from "./data/characters";
 import { scenarios } from "./data/scenarios";
@@ -8,7 +8,7 @@ import type { Answer, Character, DecisionResult, PokerScenario, Question } from 
 
 declare const __OPENAI_KEY_SUFFIX__: string;
 
-type Page = "home" | "select" | "result";
+type Page = "home" | "result";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
@@ -31,12 +31,8 @@ function App() {
     return Boolean(activeQuestions.length && selectedAnswers.filter(Boolean).length === activeQuestions.length);
   }, [activeQuestions.length, selectedAnswers]);
 
-  function startGame() {
-    setPage("select");
-  }
-
   function pickQuestions(char: Character) {
-    const count = Math.random() < 0.5 ? 1 : 2;
+    const count = Math.random() < 0.8 ? 1 : 2;
     const offsets: number[] = [];
     const qLen = char.questions.length;
     if (count === 1) {
@@ -57,10 +53,6 @@ function App() {
     setPage("result");
   }
 
-  function chooseRandomCharacter() {
-    chooseCharacter(randomItem(characters));
-  }
-
   function answerQuestion(questionIndex: number, answer: Answer) {
     setSelectedAnswers((current) => {
       const next = [...current];
@@ -76,7 +68,7 @@ function App() {
 
   function playAnotherHand() {
     if (!character) {
-      setPage("select");
+      setPage("home");
       return;
     }
     setScenario(randomItem(scenarios));
@@ -86,11 +78,9 @@ function App() {
     setActiveQuestionIndices(pickQuestions(character));
   }
 
-  function changeCharacter() {
-    setSelectedAnswers([]);
-    setResult(null);
-    setDestinyRoll(null);
-    setPage("select");
+  function switchToRandomCharacter() {
+    const activeCharacters = characters.filter((c) => c.id !== "soul-reader" && c.id !== "gto-tank");
+    chooseCharacter(randomItem(activeCharacters));
   }
 
   function goHome() {
@@ -119,17 +109,16 @@ function App() {
             </button>
             {character && page === "result" && (
               <button
-                onClick={changeCharacter}
-                className="rounded-full border border-amber-500/30 bg-zinc-950/70 px-4 py-2 text-sm font-bold text-amber-100 transition hover:bg-amber-500/20"
+                onClick={switchToRandomCharacter}
+                className="rounded-full border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-200 transition hover:bg-amber-400 hover:text-zinc-950"
               >
-                换角色
+                随机人格
               </button>
             )}
           </header>
 
           <div className="flex flex-1 items-center py-8">
-            {page === "home" && <HomePage onSelectCharacter={chooseCharacter} onViewAll={startGame} />}
-            {page === "select" && <CharacterSelectPage onSelect={chooseCharacter} onRandom={chooseRandomCharacter} />}
+            {page === "home" && <HomePage onSelectCharacter={chooseCharacter} />}
             {page === "result" && character && scenario && (
               <ResultFlow
                 character={character}
@@ -142,7 +131,7 @@ function App() {
                 onAnswer={answerQuestion}
                 onReveal={revealDecision}
                 onAgain={playAnotherHand}
-                onChangeCharacter={changeCharacter}
+                onChangeCharacter={switchToRandomCharacter}
                 onHome={goHome}
               />
             )}
@@ -159,7 +148,7 @@ function App() {
 
 // ====================== HomePage ======================
 
-function HomePage({ onSelectCharacter, onViewAll }: { onSelectCharacter: (character: Character) => void; onViewAll: () => void }) {
+function HomePage({ onSelectCharacter }: { onSelectCharacter: (character: Character) => void }) {
   const featuredCharacters = characters.filter((item) => item.avatarImage).slice(0, 4);
 
   return (
@@ -197,14 +186,6 @@ function HomePage({ onSelectCharacter, onViewAll }: { onSelectCharacter: (charac
                   </div>
                 </button>
               ))}
-            </div>
-            <div className="mt-4 text-center sm:mt-5">
-              <button
-                onClick={onViewAll}
-                className="inline-block rounded-lg border border-amber-500/40 bg-zinc-900/90 px-4 py-2 text-sm font-bold text-amber-300 transition hover:bg-amber-500/15 hover:text-amber-100"
-              >
-                查看全部 6 个人格 →
-              </button>
             </div>
           </div>
         </div>
@@ -321,39 +302,6 @@ function HowToPlaySection() {
   );
 }
 
-// ====================== CharacterSelectPage ======================
-
-function CharacterSelectPage({
-  onSelect,
-  onRandom,
-}: {
-  onSelect: (character: Character) => void;
-  onRandom: () => void;
-}) {
-  return (
-    <section className="w-full">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.3em] text-amber-500">Choose PBTI</p>
-          <h1 className="mt-2 text-4xl font-black text-amber-100">选择你的人格</h1>
-        </div>
-        <button
-          onClick={onRandom}
-          className="rounded-xl border border-amber-300 bg-zinc-950/80 px-5 py-3 font-black text-amber-100 shadow-gold transition hover:scale-105 hover:bg-amber-400 hover:text-zinc-950"
-        >
-          随机角色
-        </button>
-      </div>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {characters.map((item) => (
-          <CharacterCard key={item.id} character={item} onSelect={onSelect} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 // ====================== ResultFlow (Questions → Result) ======================
 
 function ResultFlow({
@@ -417,7 +365,7 @@ function ResultFlow({
               onClick={onChangeCharacter}
               className="shrink-0 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:border-amber-500 hover:text-amber-100"
             >
-              换个人格
+              随机人格
             </button>
           </div>
 
@@ -466,7 +414,8 @@ function ResultFlow({
       ) : (
         <ResultCard
           character={character}
-          scenario={scenario}
+          questions={questions}
+          selectedAnswers={selectedAnswers}
           result={result}
           onAgain={onAgain}
           onChangeCharacter={onChangeCharacter}
