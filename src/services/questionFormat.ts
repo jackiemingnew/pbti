@@ -23,6 +23,7 @@ export const modifierKeys = [
   "raiseScoreBonus",
   "callScoreBonus",
   "checkScoreBonus",
+  "foldScoreBonus",
 ] as const;
 
 export function questionSchema() {
@@ -31,7 +32,7 @@ export function questionSchema() {
   return {
     type: "object",
     additionalProperties: false,
-    required: ["questions"],
+    required: ["questions", "foldScoreBonus"],
     properties: {
       questions: {
         type: "array",

@@ -6,6 +6,7 @@ const clampStat = (score: number) => Math.max(0, Math.min(10, Number(score.toFix
 function mergeModifiers(params: DecisionParams, selectedAnswers: Answer[]) {
   const modified: DecisionParams = { ...params };
   const bonuses = {
+    foldScoreBonus: 0,
     raiseScoreBonus: 0,
     callScoreBonus: 0,
     checkScoreBonus: 0,
@@ -31,6 +32,7 @@ function mergeModifiers(params: DecisionParams, selectedAnswers: Answer[]) {
 }
 
 function chooseSizing(action: DecisionResult["action"], scenario: PokerScenario, params: DecisionParams, character: Character) {
+  if (action === "Fold") return "0";
   if (action === "Check") return scenario.opponentAction.toLowerCase().includes("bet") ? "Fold 被替换为保守 Call" : "0";
   if (action === "Call") {
     if (scenario.opponentAction.toLowerCase().includes("2/3")) return "Call 2/3 Pot";
@@ -81,23 +83,25 @@ function generateDestinyDecision(character: Character, scenario: PokerScenario, 
   const answerSeed = destinySeedFromAnswers(selectedAnswers);
   const roll = ((baseRoll + answerSeed - 1) % 100) + 1;
   const facingBet = scenario.opponentAction.toLowerCase().includes("bet");
-  const action: DecisionResult["action"] = roll >= 67 ? "Raise" : roll >= 34 || facingBet ? "Call" : "Check";
+  const action: DecisionResult["action"] = roll >= 67 ? "Raise" : roll >= 34 || facingBet ? "Call" : roll >= 17 ? "Check" : "Fold";
 
   const scoreBreakdown =
     action === "Raise"
-      ? { checkScore: facingBet ? 0 : clampScore(2 + (100 - roll) / 30), callScore: clampScore(4 + (100 - roll) / 22), raiseScore: clampScore(7 + roll / 20) }
+      ? { checkScore: facingBet ? 0 : clampScore(2 + (100 - roll) / 30), callScore: clampScore(4 + (100 - roll) / 22), raiseScore: clampScore(7 + roll / 20), foldScore: 0 }
       : action === "Call"
-        ? { checkScore: facingBet ? 0 : clampScore(4 + Math.abs(50 - roll) / 30), callScore: clampScore(8 + Math.abs(50 - roll) / 40), raiseScore: clampScore(3 + roll / 30) }
-        : { checkScore: clampScore(8 + (34 - roll) / 8), callScore: clampScore(4 + roll / 18), raiseScore: clampScore(2 + roll / 25) };
+        ? { checkScore: facingBet ? 0 : clampScore(4 + Math.abs(50 - roll) / 30), callScore: clampScore(8 + Math.abs(50 - roll) / 40), raiseScore: clampScore(3 + roll / 30), foldScore: 0 }
+        : action === "Check"
+          ? { checkScore: clampScore(8 + (34 - roll) / 8), callScore: clampScore(4 + roll / 18), raiseScore: clampScore(2 + roll / 25), foldScore: 0 }
+          : { checkScore: 0, callScore: 0, raiseScore: 0, foldScore: clampScore(8 + Math.abs(50 - roll) / 30) };
 
-  const key = action.toLowerCase() as "check" | "call" | "raise";
+  const key = action.toLowerCase() as "check" | "call" | "raise" | "fold";
   const answerLabels = selectedAnswers.map((answer) => `「${answer.label}」`).join("、");
 
   return {
     action,
     sizing: destinySizing(action, scenario, roll),
     scoreBreakdown,
-    voiceLine: character.voiceLines[key],
+    voiceLine: character.voiceLines[key] || "这手不属于我，先撤。",
     reasoning: `天命人不看鸡、钱、术。他本手先掷出命运底数 ${baseRoll}，再把你的回答 ${answerLabels} 折算成荒诞扰动，得到天命波动 ${roll}。数字越高越容易把筹码往前推。`,
     riskWarning: `这不是牌理建议，而是随机娱乐机制。${roll >= 90 ? "本次命运很躁，下注尺度会明显偏大。" : "本次数字只代表小游戏里的命运噪声。"} `,
     personalityBias: character.bias,
@@ -147,6 +151,16 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     stats.skill * 0.08 +
     bonuses.checkScoreBonus;
 
+  let foldScore =
+    (10 - params.handStrength) * 0.20 +
+    (10 - params.potOdds) * 0.18 +
+    params.uncertainty * 0.18 +
+    (10 - params.showdownValue) * 0.15 +
+    params.opponentAggression * 0.12 +
+    (10 - stats.chicken) * 0.10 +
+    (10 - stats.money) * 0.07 +
+    bonuses.foldScoreBonus;
+
   const facingBet = scenario.opponentAction.toLowerCase().includes("bet");
   if (facingBet) {
     checkScore = -1;
@@ -165,12 +179,19 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     checkScore: clampScore(checkScore),
     callScore: clampScore(callScore),
     raiseScore: clampScore(raiseScore),
+    foldScore: clampScore(foldScore),
   };
 
   let action: DecisionResult["action"] = "Check";
-  if (scoreBreakdown.raiseScore >= scoreBreakdown.callScore && scoreBreakdown.raiseScore >= scoreBreakdown.checkScore) action = "Raise";
-  else if (scoreBreakdown.callScore >= scoreBreakdown.checkScore) action = "Call";
-  if (facingBet && action === "Check") action = "Call";
+  if (facingBet && scoreBreakdown.foldScore >= scoreBreakdown.raiseScore && scoreBreakdown.foldScore >= scoreBreakdown.callScore) {
+    action = "Fold";
+  } else if (scoreBreakdown.raiseScore >= scoreBreakdown.callScore && scoreBreakdown.raiseScore >= scoreBreakdown.checkScore) {
+    action = "Raise";
+  } else if (scoreBreakdown.callScore >= scoreBreakdown.checkScore) {
+    action = "Call";
+  } else if (facingBet) {
+    action = "Fold";
+  }
 
   const key = action.toLowerCase() as "check" | "call" | "raise";
   const bestReason =
@@ -178,7 +199,9 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
       ? `Raise 分最高：${character.name} 的鸡瘾值把 fold equity、听牌潜力和位置优势转化成主动压力。`
       : action === "Call"
         ? `Call 分最高：当前牌力、赔率和钞能力足够支撑继续看下一步剧情。`
-        : `Check 分最高：不确定性、陷阱可能和术流控池价值超过主动施压收益。`;
+        : action === "Fold"
+          ? `Fold 分最高：牌力偏弱、赔率不理想，${character.name} 选择弃牌等候下一手。`
+          : `Check 分最高：不确定性、陷阱可能和术流控池价值超过主动施压收益。`;
 
   return {
     action,

@@ -14,7 +14,7 @@ export const DEFAULT_QUESTION_PROMPT = `你是《PBTI：牌桌行为人格测试
 - 必须生成 2 个 questions。
 - 每个 question 必须有 4 个 answers。
 - 每个 answer.modifiers 必须至少包含 1 个会影响结果的数值。
-- 普通角色优先使用 handStrength、drawPotential、positionAdvantage、opponentAggression、foldEquity、potOdds、uncertainty、showdownValue、trapPotential、chicken、money、skill、raiseScoreBonus、callScoreBonus、checkScoreBonus。
+- 普通角色优先使用 handStrength、drawPotential、positionAdvantage、opponentAggression、foldEquity、potOdds、uncertainty、showdownValue、trapPotential、chicken、money、skill、raiseScoreBonus、callScoreBonus、checkScoreBonus、foldScoreBonus。
 - chicken 表示鸡瘾值：更想偷鸡、主动 bet / raise / bluff。
 - money 表示钞能力：更能承受筹码波动、愿意 call 大注买剧情。
 - skill 表示技术流：更重视范围、赔率、下注尺度、GTO/exploit。

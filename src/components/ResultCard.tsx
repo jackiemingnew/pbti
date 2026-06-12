@@ -15,6 +15,7 @@ const bars = [
   ["Check", "checkScore", "bg-emerald-500"],
   ["Call", "callScore", "bg-blue-500"],
   ["Raise", "raiseScore", "bg-red-500"],
+  ["Fold", "foldScore", "bg-purple-500"],
 ] as const;
 
 const modifierLabels: Record<string, string> = {
