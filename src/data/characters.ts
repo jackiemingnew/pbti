@@ -54,6 +54,7 @@ export const characters: Character[] = [
     stats: { courage: 9, technique: 8, bankroll: 9, read: 9 },
     description: "他不是单纯莽，而是有气场、有判断、有资金承压能力的全能玩家。",
     avatarStyle: "from-amber-300 via-yellow-700 to-zinc-950",
+    avatarImage: "/avatars/fage-aa.png",
     questions: [
       {
         id: "king-q1",
@@ -85,6 +86,7 @@ export const characters: Character[] = [
     stats: { courage: 10, technique: 7, bankroll: 5, read: 8 },
     description: "他擅长发现对手不舒服的节点，然后用下注压力逼对手弃牌。",
     avatarStyle: "from-red-500 via-zinc-950 to-amber-600",
+    avatarImage: "/avatars/bluff-king-27.png",
     questions: [
       {
         id: "bluff-q1",
@@ -112,6 +114,7 @@ export const characters: Character[] = [
     stats: { courage: 9, technique: 3, bankroll: 10, read: 3 },
     description: "资金厚，爱玩，喜欢看牌，不喜欢轻易弃牌。",
     avatarStyle: "from-fuchsia-500 via-amber-600 to-zinc-950",
+    avatarImage: "/avatars/boss-money.png",
     questions: [
       {
         id: "boss-q1",
@@ -220,6 +223,7 @@ export const characters: Character[] = [
     decisionMode: "destiny",
     description: "他不看胆术粮眼，也不看 GTO。先问一个弱智吧式问题，再把你的回答丢进天命随机数里。",
     avatarStyle: "from-lime-300 via-amber-500 to-red-950",
+    avatarImage: "/avatars/destiny-q3.png",
     questions: [
       {
         id: "destiny-q1",

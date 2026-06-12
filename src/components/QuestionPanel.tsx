@@ -1,4 +1,5 @@
 import type { Answer, Character, Question } from "../types";
+import { CharacterAvatar } from "./CharacterCard";
 
 type QuestionPanelProps = {
   character: Character;
@@ -13,7 +14,7 @@ export function QuestionPanel({ character, questions, selectedAnswers, isLoading
   return (
     <section className="rounded-3xl border border-amber-500/40 bg-zinc-950/86 p-5 shadow-2xl">
       <div className="mb-4 flex items-center gap-3">
-        <div className={`grid h-14 w-14 place-items-center rounded-xl bg-gradient-to-br ${character.avatarStyle} text-2xl`}>♠</div>
+        <CharacterAvatar character={character} size="small" />
         <div>
           <p className="text-sm text-amber-400">{character.name} 正在观察牌桌</p>
           <h2 className="text-xl font-black text-amber-100">回答人格问题</h2>

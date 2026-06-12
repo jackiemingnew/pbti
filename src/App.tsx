@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CharacterCard } from "./components/CharacterCard";
+import { CharacterAvatar, CharacterCard } from "./components/CharacterCard";
 import { PokerTable } from "./components/PokerTable";
 import { QuestionPanel } from "./components/QuestionPanel";
 import { ResultCard } from "./components/ResultCard";
@@ -10,7 +10,7 @@ import { generateDecision } from "./logic/decisionEngine";
 import { generateQuestions } from "./services/questionApi";
 import type { Answer, Character, DecisionResult, PokerScenario, Question } from "./types";
 
-type Page = "home" | "select" | "scenario" | "result";
+type Page = "home" | "select" | "scenario" | "result" | "imageTest";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
@@ -53,6 +53,10 @@ function App() {
   function startGame() {
     setReuseScenario(false);
     setPage("select");
+  }
+
+  function openImageTest() {
+    setPage("imageTest");
   }
 
   function chooseCharacter(nextCharacter: Character) {
@@ -162,7 +166,7 @@ function App() {
           </header>
 
           <div className="flex flex-1 items-center py-8">
-            {page === "home" && <HomePage apiKey={openAiApiKey} onApiKeyChange={updateOpenAiApiKey} onStart={startGame} />}
+            {page === "home" && <HomePage apiKey={openAiApiKey} onApiKeyChange={updateOpenAiApiKey} onStart={startGame} onImageTest={openImageTest} />}
             {page === "select" && (
               <CharacterSelectPage
                 onSelect={chooseCharacter}
@@ -199,6 +203,7 @@ function App() {
                 onHome={goHome}
               />
             )}
+            {page === "imageTest" && <ImageTestPage onBack={goHome} />}
           </div>
 
           <footer className="border-t border-amber-500/20 pt-4 text-center text-xs text-zinc-500">
@@ -210,9 +215,21 @@ function App() {
   );
 }
 
-function HomePage({ apiKey, onApiKeyChange, onStart }: { apiKey: string; onApiKeyChange: (key: string) => void; onStart: () => void }) {
+function HomePage({
+  apiKey,
+  onApiKeyChange,
+  onStart,
+  onImageTest,
+}: {
+  apiKey: string;
+  onApiKeyChange: (key: string) => void;
+  onStart: () => void;
+  onImageTest: () => void;
+}) {
+  const featuredCharacters = characters.filter((item) => item.avatarImage).slice(0, 4);
+
   return (
-    <section className="grid w-full items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+    <section className="grid w-full items-center gap-8 lg:grid-cols-[1fr_1fr]">
       <div className="max-w-3xl">
         <p className="text-sm font-black uppercase tracking-[0.32em] text-amber-500">Medieval Poker Decision Game</p>
         <h1 className="mt-4 text-4xl font-black leading-tight text-amber-100 sm:text-6xl lg:text-7xl">
@@ -225,31 +242,41 @@ function HomePage({ apiKey, onApiKeyChange, onStart }: { apiKey: string; onApiKe
         <div className="mt-6 max-w-2xl">
           <ApiKeyPanel apiKey={apiKey} onApiKeyChange={onApiKeyChange} compact />
         </div>
-        <button
-          onClick={onStart}
-          className="mt-8 rounded-xl border border-amber-200 bg-amber-400 px-7 py-4 text-lg font-black text-zinc-950 shadow-gold transition hover:scale-105 hover:bg-amber-300"
-        >
-          开始游戏
-        </button>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <button
+            onClick={onStart}
+            className="rounded-xl border border-amber-200 bg-amber-400 px-7 py-4 text-lg font-black text-zinc-950 shadow-gold transition hover:scale-105 hover:bg-amber-300"
+          >
+            开始游戏
+          </button>
+          <button
+            onClick={onImageTest}
+            className="rounded-xl border border-amber-500/60 bg-zinc-950/80 px-7 py-4 text-lg font-black text-amber-100 transition hover:scale-105 hover:bg-amber-500/15"
+          >
+            测试识别
+          </button>
+        </div>
       </div>
 
-      <div className="relative mx-auto aspect-[4/5] w-full max-w-md rounded-3xl border border-amber-500/50 bg-zinc-950/80 p-5 shadow-2xl">
+      <div className="relative mx-auto w-full max-w-xl rounded-3xl border border-amber-500/50 bg-zinc-950/80 p-5 shadow-2xl">
         <div className="absolute inset-4 rounded-[1.4rem] border border-amber-400/20" />
-        <div className="relative z-10 flex h-full flex-col justify-between">
-          <div>
-            <p className="text-sm font-bold text-amber-400">Tonight's Table</p>
-            <div className="mt-5 grid grid-cols-3 gap-3">
-              {["A♠", "J♠", "K♦", "8♣", "3♠", "Q♥"].map((card) => (
-                <div key={card} className="grid aspect-[3/4] place-items-center rounded-lg border border-zinc-200 bg-white text-2xl font-black text-zinc-950 shadow-lg">
-                  <span className={card.includes("♥") || card.includes("♦") ? "text-red-600" : ""}>{card}</span>
+        <div className="relative z-10">
+          <p className="text-sm font-bold text-amber-400">PBTI Characters</p>
+          <h2 className="mt-2 text-3xl font-black text-amber-100">四种牌桌人格</h2>
+          <div className="mt-5 grid grid-cols-2 gap-4">
+            {featuredCharacters.map((item) => (
+              <button
+                key={item.id}
+                onClick={onStart}
+                className="group overflow-hidden rounded-2xl border border-amber-500/35 bg-zinc-900/80 text-left transition hover:-translate-y-1 hover:border-amber-300"
+              >
+                <img src={item.avatarImage} alt={item.name} className="aspect-square w-full object-cover transition duration-500 group-hover:scale-105" />
+                <div className="p-3">
+                  <p className="font-black text-amber-100">{item.name}</p>
+                  <p className="text-xs text-amber-400">{item.archetype}</p>
                 </div>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="h-16 rounded-full border-4 border-amber-200 bg-red-700 shadow-blood" />
-            <div className="h-16 rounded-full border-4 border-amber-200 bg-sky-700 shadow-blue-900/50" />
-            <div className="h-16 rounded-full border-4 border-amber-200 bg-emerald-700 shadow-emerald-900/50" />
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -329,9 +356,7 @@ function ScenarioPage({
   return (
     <section className="grid w-full gap-5 xl:grid-cols-[0.82fr_1.18fr]">
       <aside className="rounded-3xl border border-amber-500/45 bg-zinc-950/88 p-5 shadow-2xl">
-        <div className={`grid h-28 w-28 place-items-center rounded-2xl border border-amber-300/60 bg-gradient-to-br ${character.avatarStyle} text-5xl shadow-gold`}>
-          {avatarGlyph(character.id)}
-        </div>
+        <CharacterAvatar character={character} size="large" />
         <p className="mt-5 text-sm font-bold text-amber-400">{character.archetype}</p>
         <h2 className="mt-1 text-3xl font-black text-amber-100">{character.name}</h2>
         <p className="mt-3 leading-7 text-zinc-300">{character.description}</p>
@@ -422,8 +447,8 @@ function ApiKeyPanel({
     <section className={`rounded-3xl border border-amber-500/35 bg-zinc-950/86 ${compact ? "p-4" : "p-5"} shadow-2xl`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-amber-400">OpenAI API Key</p>
-          <h2 className="text-xl font-black text-amber-100">{apiKey ? "已填入" : "未填入"}</h2>
+          <p className="text-sm font-bold text-amber-400">OpenAI 题库来源</p>
+          <h2 className="text-xl font-black text-amber-100">{apiKey ? "浏览器兜底已填入" : "服务端环境变量优先"}</h2>
         </div>
         {apiKey && (
           <button
@@ -440,13 +465,104 @@ function ApiKeyPanel({
         type="password"
         autoComplete="off"
         spellCheck={false}
-        placeholder="sk-..."
+        placeholder="可选：没有服务端 API 时填入个人 sk-..."
         className="mt-4 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-200 outline-none transition focus:border-amber-400"
       />
       <p className="mt-3 text-xs leading-5 text-zinc-500">
-        纯前端模式会直接从浏览器请求 OpenAI。Key 只保存在当前浏览器会话中，刷新可保留，关闭标签页后清除。
+        默认请求 /api/generate-questions，由 Vercel 或本地服务端读取 OPENAI_API_KEY。这里的输入只作为静态部署或服务端不可用时的兜底，且只保存在当前浏览器会话中。
       </p>
     </section>
+  );
+}
+
+function ImageTestPage({ onBack }: { onBack: () => void }) {
+  const [imagePreview, setImagePreview] = useState("");
+  const [imageName, setImageName] = useState("");
+  const [imageSize, setImageSize] = useState("");
+  const [imageDimensions, setImageDimensions] = useState("");
+
+  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const nextUrl = URL.createObjectURL(file);
+    setImagePreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return nextUrl;
+    });
+    setImageName(file.name);
+    setImageSize(`${(file.size / 1024 / 1024).toFixed(2)} MB`);
+
+    const image = new Image();
+    image.onload = () => {
+      setImageDimensions(`${image.naturalWidth} x ${image.naturalHeight}`);
+    };
+    image.src = nextUrl;
+  }
+
+  return (
+    <section className="grid w-full gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="rounded-3xl border border-amber-500/45 bg-zinc-950/88 p-5 shadow-2xl">
+        <p className="text-sm font-black uppercase tracking-[0.28em] text-amber-500">Image Lab</p>
+        <h1 className="mt-2 text-4xl font-black text-amber-100">图片读取测试</h1>
+        <p className="mt-3 leading-7 text-zinc-300">
+          这里先读取牌局图片和基础信息，后续可以接入视觉模型，把图片解析成手牌、公共牌、位置、底池和行动。
+        </p>
+
+        <label className="mt-6 block cursor-pointer rounded-2xl border border-dashed border-amber-500/50 bg-amber-400/10 p-5 text-center transition hover:border-amber-300 hover:bg-amber-400/15">
+          <input type="file" accept="image/*" onChange={handleImageChange} className="sr-only" />
+          <span className="block text-lg font-black text-amber-100">选择牌局图片</span>
+          <span className="mt-1 block text-sm text-zinc-400">PNG / JPG / WebP</span>
+        </label>
+
+        <div className="mt-5 grid gap-3 text-sm">
+          <InfoRow label="文件名" value={imageName || "未选择"} />
+          <InfoRow label="文件大小" value={imageSize || "-"} />
+          <InfoRow label="图片尺寸" value={imageDimensions || "-"} />
+        </div>
+
+        <button
+          onClick={onBack}
+          className="mt-6 rounded-xl border border-zinc-700 px-5 py-3 font-bold text-zinc-200 transition hover:border-amber-500 hover:bg-amber-500/10 hover:text-amber-100"
+        >
+          回首页
+        </button>
+      </div>
+
+      <div className="rounded-3xl border border-amber-500/45 bg-zinc-950/88 p-5 shadow-2xl">
+        <div className="grid min-h-[360px] place-items-center overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80">
+          {imagePreview ? (
+            <img src={imagePreview} alt="上传的牌局" className="max-h-[620px] w-full object-contain" />
+          ) : (
+            <div className="px-6 text-center">
+              <p className="text-5xl text-amber-200">♠</p>
+              <p className="mt-3 font-black text-amber-100">等待图片</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
+          <h2 className="font-black text-amber-100">牌局情况</h2>
+          <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
+            <InfoRow label="Hero 手牌" value="待识别" />
+            <InfoRow label="公共牌" value="待识别" />
+            <InfoRow label="位置" value="待识别" />
+            <InfoRow label="底池" value="待识别" />
+            <InfoRow label="对手行动" value="待识别" />
+            <InfoRow label="街道" value="待识别" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-2">
+      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="mt-1 font-bold text-zinc-100">{value}</p>
+    </div>
   );
 }
 

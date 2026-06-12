@@ -29,12 +29,7 @@ export function CharacterCard({ character, selected, onSelect }: CharacterCardPr
     >
       <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${character.avatarStyle}`} />
       <div className="flex gap-4">
-        <div
-          className={`grid h-20 w-20 shrink-0 place-items-center rounded-2xl border border-amber-300/50 bg-gradient-to-br ${character.avatarStyle} text-4xl shadow-gold`}
-          aria-hidden="true"
-        >
-          {avatarGlyph(character.id)}
-        </div>
+        <CharacterAvatar character={character} size="card" />
         <div>
           <h3 className="text-xl font-black text-amber-100">{character.name}</h3>
           <p className="text-sm font-semibold text-amber-400">{character.archetype}</p>
@@ -63,5 +58,22 @@ export function CharacterCard({ character, selected, onSelect }: CharacterCardPr
         选择人格
       </button>
     </article>
+  );
+}
+
+export function CharacterAvatar({ character, size = "card" }: { character: Character; size?: "card" | "small" | "large" }) {
+  const sizeClass = size === "large" ? "h-32 w-32 text-5xl" : size === "small" ? "h-14 w-14 text-2xl" : "h-20 w-20 text-4xl";
+
+  return (
+    <div
+      className={`grid ${sizeClass} shrink-0 place-items-center overflow-hidden rounded-2xl border border-amber-300/50 bg-gradient-to-br ${character.avatarStyle} shadow-gold`}
+      aria-hidden="true"
+    >
+      {character.avatarImage ? (
+        <img src={character.avatarImage} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span>{avatarGlyph(character.id)}</span>
+      )}
+    </div>
   );
 }

@@ -53,6 +53,7 @@ export type Character = {
   };
   bias: string;
   avatarStyle: string;
+  avatarImage?: string;
 };
 
 export type PokerScenario = {
