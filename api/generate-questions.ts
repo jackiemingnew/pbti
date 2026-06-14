@@ -18,6 +18,8 @@ type QuestionRequestBody = {
   character?: Character;
   scenario?: PokerScenario;
   prompt?: string;
+  questionCount?: number;
+  destinyPrompt?: string;
 };
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
@@ -41,8 +43,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
 
   const body = parseBody(request.body);
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
-  if (!prompt || !body.character || !body.scenario) {
-    response.status(400).json({ error: "请求缺少 prompt、character 或 scenario。" });
+  if (!prompt || !body.character) {
+    response.status(400).json({ error: "请求缺少 prompt 或 character。" });
     return;
   }
 
@@ -53,6 +55,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       prompt,
       character: body.character,
       scenario: body.scenario,
+      questionCount: body.questionCount,
+      destinyPrompt: body.destinyPrompt,
     });
     response.status(200).json({ questions });
   } catch (error) {

@@ -26,18 +26,19 @@ export const modifierKeys = [
   "foldScoreBonus",
 ] as const;
 
-export function questionSchema() {
+export function questionSchema(questionCount = 2) {
+  const count = Math.max(1, Math.min(2, Math.round(questionCount)));
   const modifierProperties = Object.fromEntries(modifierKeys.map((key) => [key, { type: ["number", "null"] }]));
 
   return {
     type: "object",
     additionalProperties: false,
-    required: ["questions", "foldScoreBonus"],
+    required: ["questions"],
     properties: {
       questions: {
         type: "array",
-        minItems: 2,
-        maxItems: 2,
+        minItems: count,
+        maxItems: count,
         items: {
           type: "object",
           additionalProperties: false,

@@ -1,57 +1,186 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CharacterAvatar } from "./components/CharacterCard";
 import { ResultCard } from "./components/ResultCard";
+import { DEFAULT_DESTINY_QUESTION_PROMPT, DEFAULT_QUESTION_PROMPT } from "./config/questionPrompt";
 import { characters } from "./data/characters";
-import { scenarios } from "./data/scenarios";
 import { generateDecision } from "./logic/decisionEngine";
+import {
+  buildQuestionRequestKey,
+  getCachedQuestionSetCount,
+  rememberQuestionSet,
+  storeQuestionSet,
+  takeCachedQuestionSet,
+} from "./services/questionCache";
+import { generateQuestions } from "./services/questionApi";
 import type { Answer, Character, DecisionResult, PokerScenario, Question } from "./types";
 
 declare const __OPENAI_KEY_SUFFIX__: string;
 
-type Page = "home" | "result";
+type Page = "home" | "result" | "promptAdmin";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
+const randomQuestionCount = () => (Math.random() < 0.72 ? 1 : 2);
+const PROMPT_STORAGE_KEY = "pbti-question-prompt";
+const DESTINY_PROMPT_STORAGE_KEY = "pbti-destiny-question-prompt";
+
+const OFFLINE_DECISION_CONTEXT: PokerScenario = {
+  id: "offline-pbti-decision",
+  title: "线下即时决策",
+  heroHand: "",
+  position: "Live",
+  board: "",
+  pot: 0,
+  opponentAction: "table decision",
+  situation: "线下打牌时的娱乐辅助决策，不绑定具体手牌或公共牌。",
+  params: {
+    handStrength: 5,
+    drawPotential: 4.5,
+    positionAdvantage: 5,
+    opponentAggression: 5,
+    foldEquity: 5,
+    potOdds: 5,
+    uncertainty: 5,
+    showdownValue: 5,
+    trapPotential: 4,
+  },
+};
 
 function App() {
   const [page, setPage] = useState<Page>("home");
   const [character, setCharacter] = useState<Character | null>(null);
-  const [scenario, setScenario] = useState<PokerScenario | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Answer[]>([]);
   const [result, setResult] = useState<DecisionResult | null>(null);
   const [destinyRoll, setDestinyRoll] = useState<number | null>(null);
-  const [activeQuestionIndices, setActiveQuestionIndices] = useState<number[]>([]);
+  const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
+  const [questionStatus, setQuestionStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
+  const [questionError, setQuestionError] = useState("");
   const [forceEasterEgg, setForceEasterEgg] = useState(false);
-
-  const activeQuestions = useMemo(() => {
-    if (!character) return [];
-    return activeQuestionIndices.map((i) => character.questions[i]).filter(Boolean);
-  }, [character, activeQuestionIndices]);
+  const [questionPrompt, setQuestionPrompt] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_QUESTION_PROMPT;
+    return window.localStorage.getItem(PROMPT_STORAGE_KEY) || DEFAULT_QUESTION_PROMPT;
+  });
+  const [promptDraft, setPromptDraft] = useState(questionPrompt);
+  const [destinyPrompt, setDestinyPrompt] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_DESTINY_QUESTION_PROMPT;
+    return window.localStorage.getItem(DESTINY_PROMPT_STORAGE_KEY) || DEFAULT_DESTINY_QUESTION_PROMPT;
+  });
+  const [destinyPromptDraft, setDestinyPromptDraft] = useState(destinyPrompt);
+  const inflightQuestionsRef = useRef(new Map<string, Promise<Question[]>>());
 
   const answeredAllQuestions = useMemo(() => {
     return Boolean(activeQuestions.length && selectedAnswers.filter(Boolean).length === activeQuestions.length);
   }, [activeQuestions.length, selectedAnswers]);
 
-  function pickQuestions(char: Character) {
-    const count = Math.random() < 0.8 ? 1 : 2;
-    const offsets: number[] = [];
-    const qLen = char.questions.length;
-    if (count === 1) {
-      offsets.push(Math.floor(Math.random() * qLen));
-    } else {
-      for (let i = 0; i < Math.min(2, qLen); i++) offsets.push(i);
-    }
-    return offsets;
+  function pickFallbackQuestions(char: Character, count: number) {
+    return [...char.questions]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(count, char.questions.length));
   }
 
+  function hasWarmQuestions(char: Character, count: number) {
+    return (
+      getCachedQuestionSetCount(char, questionPrompt, destinyPrompt, count) > 0 ||
+      inflightQuestionsRef.current.has(buildQuestionRequestKey(char, questionPrompt, destinyPrompt, count))
+    );
+  }
+
+  function pickQuestionCountForCharacter(char: Character) {
+    const preferred = randomQuestionCount();
+    const alternate = preferred === 1 ? 2 : 1;
+    if (hasWarmQuestions(char, preferred)) return preferred;
+    if (hasWarmQuestions(char, alternate)) return alternate;
+    return preferred;
+  }
+
+  useEffect(() => {
+    if (page !== "home") return;
+    let canceled = false;
+    const queue = ([1, 2] as const).flatMap((count) =>
+      characters
+        .filter((item) => getCachedQuestionSetCount(item, questionPrompt, destinyPrompt, count) < 1)
+        .map((character) => ({ character, count })),
+    );
+
+    async function worker() {
+      while (!canceled && queue.length) {
+        const task = queue.shift();
+        if (!task) return;
+        try {
+          await generateAndCacheQuestions(task.character, task.count, questionPrompt, destinyPrompt);
+        } catch {
+          // Preloading is opportunistic. The visible flow will still fall back safely.
+        }
+      }
+    }
+
+    void worker();
+    void worker();
+
+    return () => {
+      canceled = true;
+    };
+  }, [page, questionPrompt, destinyPrompt]);
+
   function chooseCharacter(nextCharacter: Character) {
+    const count = pickQuestionCountForCharacter(nextCharacter);
     setCharacter(nextCharacter);
-    setScenario(randomItem(scenarios));
     setDestinyRoll(nextCharacter.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
-    setActiveQuestionIndices(pickQuestions(nextCharacter));
+    setActiveQuestions([]);
+    setQuestionError("");
+    loadQuestionBank(nextCharacter, count);
     setPage("result");
+  }
+
+  async function loadQuestionBank(nextCharacter: Character, count: number) {
+    const cachedQuestions = takeCachedQuestionSet(nextCharacter, questionPrompt, destinyPrompt, count);
+    if (cachedQuestions) {
+      setActiveQuestions(cachedQuestions);
+      setQuestionStatus("ready");
+      setQuestionError("");
+      void generateAndCacheQuestions(nextCharacter, count, questionPrompt, destinyPrompt).catch(() => undefined);
+      return;
+    }
+
+    setQuestionStatus("loading");
+    try {
+      const questions = await generateAndCacheQuestions(nextCharacter, count, questionPrompt, destinyPrompt);
+      rememberQuestionSet(nextCharacter, questionPrompt, destinyPrompt, questions);
+      setActiveQuestions(questions.slice(0, count));
+      setQuestionStatus("ready");
+      setQuestionError("");
+    } catch (error) {
+      const fallbackQuestions = pickFallbackQuestions(nextCharacter, count);
+      rememberQuestionSet(nextCharacter, questionPrompt, destinyPrompt, fallbackQuestions);
+      setActiveQuestions(fallbackQuestions);
+      setQuestionStatus("fallback");
+      setQuestionError(`${error instanceof Error ? error.message : "题库生成失败"}；已临时使用本地随机题库。`);
+    }
+  }
+
+  function generateAndCacheQuestions(nextCharacter: Character, count: number, prompt: string, destinyStylePrompt: string) {
+    const requestKey = buildQuestionRequestKey(nextCharacter, prompt, destinyStylePrompt, count);
+    const existing = inflightQuestionsRef.current.get(requestKey);
+    if (existing) return existing;
+
+    const request = generateQuestions(nextCharacter, prompt, "", count, destinyStylePrompt).then((questions) => {
+      const normalizedQuestions = questions.slice(0, count);
+      storeQuestionSet(nextCharacter, prompt, destinyStylePrompt, normalizedQuestions);
+      return normalizedQuestions;
+    });
+
+    inflightQuestionsRef.current.set(requestKey, request);
+    request.then(
+      () => {
+        inflightQuestionsRef.current.delete(requestKey);
+      },
+      () => {
+        inflightQuestionsRef.current.delete(requestKey);
+      },
+    );
+    return request;
   }
 
   function answerQuestion(questionIndex: number, answer: Answer) {
@@ -63,13 +192,13 @@ function App() {
   }
 
   function revealDecision() {
-    if (!character || !scenario || !answeredAllQuestions) return;
+    if (!character || !answeredAllQuestions) return;
 
     if (forceEasterEgg || Math.random() < 0.05) {
       setResult({
         action: "Fold",
         sizing: "Fold",
-        scoreBreakdown: { checkScore: 0, callScore: 0, raiseScore: 0 },
+        scoreBreakdown: { checkScore: 0, callScore: 0, raiseScore: 0, foldScore: 12 },
         voiceLine: `宇宙给你递了一张牌：弃牌。${forceEasterEgg ? "彩蛋模式已确认。" : "这不是懦弱，是命运。"}`,
         reasoning: `你触发了隐藏彩蛋（5% 概率${forceEasterEgg ? "，本次为强制触发" : ""}）！无论你的答案是什么，${character.name} 选择了弃牌。`,
         riskWarning: "彩蛋仅用于娱乐，与真实牌技无关。",
@@ -79,7 +208,7 @@ function App() {
       return;
     }
 
-    setResult(generateDecision(character, scenario, selectedAnswers, destinyRoll ?? undefined));
+    setResult(generateDecision(character, OFFLINE_DECISION_CONTEXT, selectedAnswers, destinyRoll ?? undefined));
   }
 
   function playAnotherHand() {
@@ -87,30 +216,58 @@ function App() {
       setPage("home");
       return;
     }
-    setScenario(randomItem(scenarios));
+    const count = pickQuestionCountForCharacter(character);
     setDestinyRoll(character.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
-    setActiveQuestionIndices(pickQuestions(character));
+    setActiveQuestions([]);
+    setQuestionError("");
+    loadQuestionBank(character, count);
   }
 
   function toggleEasterEgg() {
     setForceEasterEgg((prev) => !prev);
   }
 
+  function openPromptAdmin() {
+    setPromptDraft(questionPrompt);
+    setDestinyPromptDraft(destinyPrompt);
+    setPage("promptAdmin");
+  }
+
+  function savePromptConfig() {
+    const nextPrompt = promptDraft.trim() || DEFAULT_QUESTION_PROMPT;
+    const nextDestinyPrompt = destinyPromptDraft.trim() || DEFAULT_DESTINY_QUESTION_PROMPT;
+    setQuestionPrompt(nextPrompt);
+    setPromptDraft(nextPrompt);
+    setDestinyPrompt(nextDestinyPrompt);
+    setDestinyPromptDraft(nextDestinyPrompt);
+    window.localStorage.setItem(PROMPT_STORAGE_KEY, nextPrompt);
+    window.localStorage.setItem(DESTINY_PROMPT_STORAGE_KEY, nextDestinyPrompt);
+  }
+
+  function resetPromptConfig() {
+    setQuestionPrompt(DEFAULT_QUESTION_PROMPT);
+    setPromptDraft(DEFAULT_QUESTION_PROMPT);
+    setDestinyPrompt(DEFAULT_DESTINY_QUESTION_PROMPT);
+    setDestinyPromptDraft(DEFAULT_DESTINY_QUESTION_PROMPT);
+    window.localStorage.removeItem(PROMPT_STORAGE_KEY);
+    window.localStorage.removeItem(DESTINY_PROMPT_STORAGE_KEY);
+  }
+
   function switchToRandomCharacter() {
-    const activeCharacters = characters.filter((c) => c.id !== "soul-reader" && c.id !== "gto-tank");
-    chooseCharacter(randomItem(activeCharacters));
+    chooseCharacter(randomItem(characters));
   }
 
   function goHome() {
     setPage("home");
     setCharacter(null);
-    setScenario(null);
     setSelectedAnswers([]);
     setResult(null);
     setDestinyRoll(null);
-    setActiveQuestionIndices([]);
+    setActiveQuestions([]);
+    setQuestionStatus("idle");
+    setQuestionError("");
   }
 
   return (
@@ -127,23 +284,39 @@ function App() {
                 <span className="block text-lg font-black text-amber-100">牌桌行为人格</span>
               </span>
             </button>
-            {character && page === "result" && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={switchToRandomCharacter}
-                className="rounded-full border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-200 transition hover:bg-amber-400 hover:text-zinc-950"
+                onClick={openPromptAdmin}
+                className="rounded-full border border-zinc-700 bg-zinc-950/70 px-4 py-2 text-sm font-bold text-zinc-300 transition hover:border-amber-500 hover:text-amber-100"
               >
-                随机人格
+                Prompt 配置
               </button>
-            )}
+              {character && page === "result" && (
+                <button
+                  onClick={switchToRandomCharacter}
+                  className="rounded-full border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-200 transition hover:bg-amber-400 hover:text-zinc-950"
+                >
+                  随机人格
+                </button>
+              )}
+            </div>
           </header>
 
           <div className="flex flex-1 items-center py-8">
-            {page === "home" && <HomePage onSelectCharacter={chooseCharacter} easterEggActive={forceEasterEgg} onToggleEasterEgg={toggleEasterEgg} />}
-            {page === "result" && character && scenario && (
+            {page === "home" && (
+              <HomePage
+                onSelectCharacter={chooseCharacter}
+                onRandomCharacter={switchToRandomCharacter}
+                easterEggActive={forceEasterEgg}
+                onToggleEasterEgg={toggleEasterEgg}
+              />
+            )}
+            {page === "result" && character && (
               <ResultFlow
                 character={character}
-                scenario={scenario}
                 questions={activeQuestions}
+                questionStatus={questionStatus}
+                questionError={questionError}
                 selectedAnswers={selectedAnswers}
                 result={result}
                 destinyRoll={destinyRoll}
@@ -153,6 +326,19 @@ function App() {
                 onAgain={playAnotherHand}
                 onChangeCharacter={switchToRandomCharacter}
                 onHome={goHome}
+              />
+            )}
+            {page === "promptAdmin" && (
+              <PromptAdminPage
+                prompt={promptDraft}
+                destinyPrompt={destinyPromptDraft}
+                savedPrompt={questionPrompt}
+                savedDestinyPrompt={destinyPrompt}
+                onPromptChange={setPromptDraft}
+                onDestinyPromptChange={setDestinyPromptDraft}
+                onSave={savePromptConfig}
+                onReset={resetPromptConfig}
+                onBack={goHome}
               />
             )}
           </div>
@@ -168,9 +354,17 @@ function App() {
 
 // ====================== HomePage ======================
 
-function HomePage({ onSelectCharacter, easterEggActive, onToggleEasterEgg }: { onSelectCharacter: (character: Character) => void; easterEggActive: boolean; onToggleEasterEgg: () => void }) {
-  const featuredCharacters = characters.filter((item) => item.avatarImage).slice(0, 4);
-
+function HomePage({
+  onSelectCharacter,
+  onRandomCharacter,
+  easterEggActive,
+  onToggleEasterEgg,
+}: {
+  onSelectCharacter: (character: Character) => void;
+  onRandomCharacter: () => void;
+  easterEggActive: boolean;
+  onToggleEasterEgg: () => void;
+}) {
   return (
     <section className="w-full space-y-6 sm:space-y-10">
       <div className="grid items-center gap-6 lg:gap-8 lg:grid-cols-[1fr_1fr]">
@@ -183,24 +377,30 @@ function HomePage({ onSelectCharacter, easterEggActive, onToggleEasterEgg }: { o
             <br />
             有人靠气场，有人靠技术，有人靠钞能力，有人靠天命。
             <br />
-            选择角色，打一手牌，看看你的牌桌人格如何做决策。
+            选择角色，回答 1～2 个即时问题，看看你的牌桌人格如何做决策。
           </p>
+          <button
+            onClick={onRandomCharacter}
+            className="mt-6 rounded-xl border border-amber-200 bg-amber-400 px-6 py-3 font-black text-zinc-950 shadow-gold transition hover:scale-105 hover:bg-amber-300"
+          >
+            随机人格开局
+          </button>
         </div>
 
         <div className="relative mx-auto w-full max-w-xl rounded-2xl border border-amber-500/50 bg-zinc-950/80 p-3 shadow-2xl sm:rounded-3xl sm:p-5">
           <div className="absolute inset-0 rounded-[1.2rem] border border-amber-400/20 sm:inset-4 sm:rounded-[1.4rem]" />
           <div className="relative z-10">
             <p className="text-sm font-bold text-amber-400">PBTI Characters</p>
-            <h2 className="mt-2 text-3xl font-black text-amber-100">人格样本</h2>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5 sm:gap-4">
-              {featuredCharacters.map((item) => (
+            <h2 className="mt-2 text-3xl font-black text-amber-100">选择人格</h2>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5 lg:grid-cols-3">
+              {characters.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => onSelectCharacter(item)}
-                  className="group overflow-hidden rounded-2xl border border-amber-500/35 bg-zinc-900/80 text-left transition hover:-translate-y-1 hover:border-amber-300"
+                  className="group rounded-2xl border border-amber-500/35 bg-zinc-900/80 p-3 text-left transition hover:-translate-y-1 hover:border-amber-300"
                 >
-                  <img src={item.avatarImage} alt={item.name} className="aspect-square w-full object-cover transition duration-500 group-hover:scale-105" />
-                  <div className="p-3">
+                  <CharacterAvatar character={item} size="small" />
+                  <div className="mt-3">
                     <p className="font-black text-amber-100">{item.name}</p>
                     <p className="text-xs text-amber-400">{item.archetype}</p>
                   </div>
@@ -265,7 +465,7 @@ function CoreConceptsSection() {
       emoji: "🎲",
       label: "命",
       title: "天命人 (Destiny)",
-      description: "特殊角色不显示三维，每手由随机数驱动。答案会给命运一点离谱解释，纯属娱乐。",
+      description: "特殊角色不显示三维，每轮由随机数驱动。答案会给命运一点离谱解释，纯属娱乐。",
       color: "border-lime-500/40",
     },
   ];
@@ -298,7 +498,7 @@ function HowToPlaySection() {
     {
       step: 1,
       title: "选择 PBTI 人格",
-      description: "从 6 种人格中选一个你的牌桌分身，或者点「随机角色」碰运气。每个人格都有独特的鸡/钱/术属性和决策偏向。",
+      description: "从当前人格中选一个你的牌桌分身，或者点「随机人格」碰运气。每个人格都有独特的鸡/钱/术属性和决策偏向。",
     },
     {
       step: 2,
@@ -336,12 +536,130 @@ function HowToPlaySection() {
   );
 }
 
+function PromptAdminPage({
+  prompt,
+  destinyPrompt,
+  savedPrompt,
+  savedDestinyPrompt,
+  onPromptChange,
+  onDestinyPromptChange,
+  onSave,
+  onReset,
+  onBack,
+}: {
+  prompt: string;
+  destinyPrompt: string;
+  savedPrompt: string;
+  savedDestinyPrompt: string;
+  onPromptChange: (prompt: string) => void;
+  onDestinyPromptChange: (prompt: string) => void;
+  onSave: () => void;
+  onReset: () => void;
+  onBack: () => void;
+}) {
+  const hasUnsavedChanges = prompt !== savedPrompt || destinyPrompt !== savedDestinyPrompt;
+
+  return (
+    <section className="mx-auto w-full max-w-5xl">
+      <div className="rounded-3xl border border-amber-500/40 bg-zinc-950/90 p-5 shadow-2xl sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-amber-500/20 pb-5">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.3em] text-amber-500">Question Prompt Admin</p>
+            <h1 className="mt-2 text-3xl font-black text-amber-100 sm:text-4xl">题库 Prompt 配置</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+              这里控制 OpenAI 生成题目的风格、约束和输出格式。保存后，下一次选择人格生成题目时会使用这些配置。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={onBack}
+              className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-amber-500 hover:text-amber-100"
+            >
+              回首页
+            </button>
+            <button
+              onClick={onReset}
+              className="rounded-xl border border-red-500/50 px-4 py-2 text-sm font-bold text-red-100 transition hover:bg-red-500/10"
+            >
+              恢复默认
+            </button>
+            <button
+              onClick={onSave}
+              className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-zinc-950 transition hover:scale-105 hover:bg-amber-300"
+            >
+              保存配置
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_280px]">
+          <div>
+            <label htmlFor="question-prompt" className="text-sm font-bold text-amber-200">
+              全局题库 Prompt
+            </label>
+            <textarea
+              id="question-prompt"
+              value={prompt}
+              onChange={(event) => onPromptChange(event.target.value)}
+              className="mt-3 min-h-[520px] w-full resize-y rounded-2xl border border-zinc-800 bg-zinc-950 p-4 font-mono text-sm leading-6 text-zinc-200 outline-none transition focus:border-amber-400"
+              spellCheck={false}
+            />
+
+            <label htmlFor="destiny-question-prompt" className="mt-5 block text-sm font-bold text-lime-200">
+              天命人荒诞题 Prompt
+            </label>
+            <textarea
+              id="destiny-question-prompt"
+              value={destinyPrompt}
+              onChange={(event) => onDestinyPromptChange(event.target.value)}
+              className="mt-3 min-h-[260px] w-full resize-y rounded-2xl border border-lime-700/40 bg-zinc-950 p-4 font-mono text-sm leading-6 text-zinc-200 outline-none transition focus:border-lime-400"
+              spellCheck={false}
+            />
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
+              <h2 className="font-black text-amber-100">状态</h2>
+              <p className={`mt-2 text-sm font-bold ${hasUnsavedChanges ? "text-amber-300" : "text-emerald-300"}`}>
+                {hasUnsavedChanges ? "有未保存修改" : "当前配置已保存"}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">
+                配置保存在当前浏览器的 localStorage，不会提交到 GitHub，也不会覆盖默认源码。
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
+              <h2 className="font-black text-amber-100">建议保留</h2>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-300">
+                <li>只返回 JSON，不要 Markdown。</li>
+                <li>严格遵守 questionCount。</li>
+                <li>每题固定 4 个答案。</li>
+                <li>modifiers 使用鸡、钱、术和分数 bonus。</li>
+                <li>天命人题目用单独的荒诞题 prompt。</li>
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-amber-500/25 bg-amber-400/10 p-4">
+              <h2 className="font-black text-amber-100">变量说明</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">
+                服务端会额外传入当前角色、questionCount、是否线下决策模式。你可以在 prompt 里要求模型根据这些上下文调整问题风格。
+                天命人模式下，还会额外传入这里配置的 destinyPrompt。
+              </p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ====================== ResultFlow (Questions → Result) ======================
 
 function ResultFlow({
   character,
-  scenario,
   questions,
+  questionStatus,
+  questionError,
   selectedAnswers,
   result,
   destinyRoll,
@@ -353,8 +671,9 @@ function ResultFlow({
   onHome,
 }: {
   character: Character;
-  scenario: PokerScenario;
   questions: Question[];
+  questionStatus: "idle" | "loading" | "ready" | "fallback";
+  questionError: string;
   selectedAnswers: Answer[];
   result: DecisionResult | null;
   destinyRoll: number | null;
@@ -366,6 +685,7 @@ function ResultFlow({
   onHome: () => void;
 }) {
   const questionPhase = result === null;
+  const isLoading = questionStatus === "loading";
 
   return (
     <section className="w-full">
@@ -403,6 +723,18 @@ function ResultFlow({
           </div>
 
           <div className="space-y-4">
+            {isLoading && (
+              <div className="rounded-2xl border border-amber-500/35 bg-amber-400/10 p-5 text-sm font-bold text-amber-100">
+                正在用 OpenAI 生成本轮随机题目...
+              </div>
+            )}
+
+            {questionError && (
+              <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm leading-6 text-red-100">
+                {questionError}
+              </div>
+            )}
+
             {questions.map((q, qi) => {
               const selectedId = selectedAnswers[qi]?.id;
               return (
@@ -437,7 +769,7 @@ function ResultFlow({
             </p>
             <button
               onClick={onReveal}
-              disabled={!answeredAllQuestions}
+              disabled={!answeredAllQuestions || isLoading}
               className="rounded-xl bg-amber-400 px-5 py-3 font-black text-zinc-950 transition enabled:hover:scale-105 enabled:hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
             >
               揭晓人格 Action

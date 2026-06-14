@@ -6,13 +6,16 @@ export type QuestionBankInput = {
   model?: string;
   prompt: string;
   character: Character;
-  scenario: PokerScenario;
+  scenario?: PokerScenario;
+  questionCount?: number;
+  destinyPrompt?: string;
 };
 
 let configuredProxyUrl = "";
 
-export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, character, scenario }: QuestionBankInput): Promise<Question[]> {
+export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, character, scenario, questionCount = 2, destinyPrompt }: QuestionBankInput): Promise<Question[]> {
   await configureOptionalProxy();
+  const count = Math.max(1, Math.min(2, Math.round(questionCount)));
 
   const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -43,7 +46,10 @@ export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, ch
                   bias: character.bias,
                   stats: character.stats ?? null,
                 },
-                scenario,
+                scenario: scenario ?? null,
+                offlineDecisionMode: true,
+                questionCount: count,
+                destinyPrompt: character.decisionMode === "destiny" ? destinyPrompt || null : null,
               }),
             },
           ],
@@ -54,7 +60,7 @@ export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, ch
           type: "json_schema",
           name: "question_bank",
           strict: true,
-          schema: questionSchema(),
+          schema: questionSchema(count),
         },
       },
     }),

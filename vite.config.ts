@@ -51,9 +51,9 @@ function localQuestionApi(env: Record<string, string>): Plugin {
         try {
           const body = await readJsonBody(request);
           const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
-          if (!prompt || !body.character || !body.scenario) {
+          if (!prompt || !body.character) {
             response.statusCode = 400;
-            response.end(JSON.stringify({ error: "请求缺少 prompt、character 或 scenario。" }));
+            response.end(JSON.stringify({ error: "请求缺少 prompt 或 character。" }));
             return;
           }
 
@@ -62,7 +62,9 @@ function localQuestionApi(env: Record<string, string>): Plugin {
             model: env.OPENAI_MODEL || env.VITE_OPENAI_MODEL || process.env.OPENAI_MODEL || process.env.VITE_OPENAI_MODEL,
             prompt,
             character: body.character as Character,
-            scenario: body.scenario as PokerScenario,
+            scenario: body.scenario as PokerScenario | undefined,
+            questionCount: typeof body.questionCount === "number" ? body.questionCount : undefined,
+            destinyPrompt: typeof body.destinyPrompt === "string" ? body.destinyPrompt : undefined,
           });
 
           response.end(JSON.stringify({ questions }));
@@ -81,5 +83,5 @@ async function readJsonBody(request: import("node:http").IncomingMessage) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as { prompt?: unknown; character?: unknown; scenario?: unknown };
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as { prompt?: unknown; character?: unknown; scenario?: unknown; questionCount?: unknown; destinyPrompt?: unknown };
 }

@@ -15,6 +15,7 @@ export type DecisionModifier = Partial<DecisionParams> & {
   money?: number;
   skill?: number;
   destinySeed?: number;
+  foldScoreBonus?: number;
   raiseScoreBonus?: number;
   callScoreBonus?: number;
   checkScoreBonus?: number;
@@ -73,6 +74,7 @@ export type DecisionResult = {
     checkScore: number;
     callScore: number;
     raiseScore: number;
+    foldScore: number;
   };
   voiceLine: string;
   reasoning: string;

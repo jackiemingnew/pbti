@@ -23,6 +23,7 @@ function mergeModifiers(params: DecisionParams, selectedAnswers: Answer[]) {
     bonuses.raiseScoreBonus += modifiers.raiseScoreBonus ?? 0;
     bonuses.callScoreBonus += modifiers.callScoreBonus ?? 0;
     bonuses.checkScoreBonus += modifiers.checkScoreBonus ?? 0;
+    bonuses.foldScoreBonus += modifiers.foldScoreBonus ?? 0;
     bonuses.chicken += modifiers.chicken ?? 0;
     bonuses.money += modifiers.money ?? 0;
     bonuses.skill += modifiers.skill ?? 0;
@@ -94,14 +95,14 @@ function generateDestinyDecision(character: Character, scenario: PokerScenario, 
           ? { checkScore: clampScore(8 + (34 - roll) / 8), callScore: clampScore(4 + roll / 18), raiseScore: clampScore(2 + roll / 25), foldScore: 0 }
           : { checkScore: 0, callScore: 0, raiseScore: 0, foldScore: clampScore(8 + Math.abs(50 - roll) / 30) };
 
-  const key = action.toLowerCase() as "check" | "call" | "raise" | "fold";
+  const key = action.toLowerCase() as "check" | "call" | "raise";
   const answerLabels = selectedAnswers.map((answer) => `「${answer.label}」`).join("、");
 
   return {
     action,
     sizing: destinySizing(action, scenario, roll),
     scoreBreakdown,
-    voiceLine: character.voiceLines[key] || "这手不属于我，先撤。",
+    voiceLine: action === "Fold" ? "这轮不属于我，先撤。" : character.voiceLines[key],
     reasoning: `天命人不看鸡、钱、术。他本手先掷出命运底数 ${baseRoll}，再把你的回答 ${answerLabels} 折算成荒诞扰动，得到天命波动 ${roll}。数字越高越容易把筹码往前推。`,
     riskWarning: `这不是牌理建议，而是随机娱乐机制。${roll >= 90 ? "本次命运很躁，下注尺度会明显偏大。" : "本次数字只代表小游戏里的命运噪声。"} `,
     personalityBias: character.bias,
@@ -207,7 +208,7 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     action,
     sizing: chooseSizing(action, scenario, params, character),
     scoreBreakdown,
-    voiceLine: character.voiceLines[key],
+    voiceLine: action === "Fold" ? "这轮不入戏，下一把再让人格上桌。" : character.voiceLines[key],
     reasoning: `${bestReason} 你的回答改变了鸡 / 钱 / 术或牌局参数，因此这不是标准 GTO 输出，而是 ${character.archetype} 的 PBTI 人格决策。`,
     riskWarning: riskText(action, scenario, params, character),
     personalityBias: character.bias,

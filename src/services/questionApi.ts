@@ -8,11 +8,13 @@ type QuestionApiResponse = {
 
 export async function generateQuestions(
   character: Character,
-  scenario: PokerScenario,
   prompt: string,
   apiKey: string,
+  questionCount: number,
+  destinyPrompt?: string,
+  scenario?: PokerScenario,
 ): Promise<Question[]> {
-  const serverResult = await requestServerQuestions(character, scenario, prompt).catch((error: unknown) => {
+  const serverResult = await requestServerQuestions(character, prompt, questionCount, destinyPrompt, scenario).catch((error: unknown) => {
     if (apiKey.trim()) return null;
     throw error;
   });
@@ -22,14 +24,14 @@ export async function generateQuestions(
     throw new Error("服务端题库 API 不可用，且未填写浏览器兜底 API key。");
   }
 
-  return requestOpenAIQuestions(character, scenario, prompt, apiKey);
+  return requestOpenAIQuestions(character, prompt, apiKey, questionCount, destinyPrompt, scenario);
 }
 
-async function requestServerQuestions(character: Character, scenario: PokerScenario, prompt: string) {
+async function requestServerQuestions(character: Character, prompt: string, questionCount: number, destinyPrompt?: string, scenario?: PokerScenario) {
   const response = await fetch("/api/generate-questions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ character, scenario, prompt }),
+    body: JSON.stringify({ character, scenario, prompt, questionCount, destinyPrompt }),
   });
 
   const payload = (await response.json().catch(() => ({}))) as QuestionApiResponse;
@@ -44,7 +46,7 @@ async function requestServerQuestions(character: Character, scenario: PokerScena
   return questions;
 }
 
-async function requestOpenAIQuestions(character: Character, scenario: PokerScenario, prompt: string, apiKey: string) {
+async function requestOpenAIQuestions(character: Character, prompt: string, apiKey: string, questionCount: number, destinyPrompt?: string, scenario?: PokerScenario) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -74,7 +76,10 @@ async function requestOpenAIQuestions(character: Character, scenario: PokerScena
                   bias: character.bias,
                   stats: character.stats ?? null,
                 },
-                scenario,
+                scenario: scenario ?? null,
+                offlineDecisionMode: true,
+                questionCount,
+                destinyPrompt: character.decisionMode === "destiny" ? destinyPrompt || null : null,
               }),
             },
           ],
@@ -85,7 +90,7 @@ async function requestOpenAIQuestions(character: Character, scenario: PokerScena
           type: "json_schema",
           name: "question_bank",
           strict: true,
-          schema: questionSchema(),
+            schema: questionSchema(questionCount),
         },
       },
     }),

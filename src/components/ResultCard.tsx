@@ -45,7 +45,7 @@ function activeModifiers(modifiers: Record<string, number | undefined>) {
 }
 
 export function ResultCard({ character, questions, selectedAnswers, result, onAgain, onChangeCharacter, onHome }: ResultCardProps) {
-  const maxScore = Math.max(result.scoreBreakdown.checkScore, result.scoreBreakdown.callScore, result.scoreBreakdown.raiseScore, 1);
+  const maxScore = Math.max(result.scoreBreakdown.checkScore, result.scoreBreakdown.callScore, result.scoreBreakdown.raiseScore, result.scoreBreakdown.foldScore, 1);
 
   return (
     <section className="w-full rounded-3xl border border-amber-500/50 bg-zinc-950/90 p-5 shadow-2xl">
@@ -193,7 +193,7 @@ export function ResultCard({ character, questions, selectedAnswers, result, onAg
           {/* Actions */}
           <div className="flex flex-wrap gap-3">
             <button onClick={onAgain} className="rounded-xl bg-amber-400 px-5 py-3 font-black text-zinc-950 transition hover:scale-105 hover:bg-amber-300">
-              再来一手
+              再来一轮
             </button>
             <button onClick={onChangeCharacter} className="rounded-xl border border-amber-500/60 px-5 py-3 font-bold text-amber-100 transition hover:bg-amber-500/15">
               随机人格
