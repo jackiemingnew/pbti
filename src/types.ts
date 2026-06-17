@@ -80,6 +80,10 @@ export type DecisionResult = {
   reasoning: string;
   riskWarning: string;
   personalityBias: string;
+  commonDeath: string;
   destinyRoll?: number;
+  destinyStatus?: string;
+  destinyEffect?: string;
+  specialEventName?: string;
   easterEgg?: boolean;
 };

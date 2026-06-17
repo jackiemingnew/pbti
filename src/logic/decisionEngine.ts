@@ -33,12 +33,12 @@ function mergeModifiers(params: DecisionParams, selectedAnswers: Answer[]) {
 }
 
 function chooseSizing(action: DecisionResult["action"], scenario: PokerScenario, params: DecisionParams, character: Character) {
-  if (action === "Fold") return "0";
-  if (action === "Check") return scenario.opponentAction.toLowerCase().includes("bet") ? "Fold 被替换为保守 Call" : "0";
+  if (action === "Fold") return "弃牌";
+  if (action === "Check") return "0";
   if (action === "Call") {
-    if (scenario.opponentAction.toLowerCase().includes("2/3")) return "Call 2/3 Pot";
-    if (scenario.opponentAction.toLowerCase().includes("1/2")) return "Call 1/2 Pot";
-    return "Call";
+    if (scenario.opponentAction.toLowerCase().includes("2/3")) return "跟注 2/3 Pot";
+    if (scenario.opponentAction.toLowerCase().includes("1/2")) return "跟注 1/2 Pot";
+    return "跟注";
   }
 
   if (character.id === "boss-whale" && character.stats && character.stats.money > 9) return params.handStrength > 8 ? "Pot" : "1/2 Pot";
@@ -46,6 +46,15 @@ function chooseSizing(action: DecisionResult["action"], scenario: PokerScenario,
   if (params.handStrength > 8.5 || params.trapPotential > 7.5) return "2.5x";
   if (params.foldEquity > 7) return "1/2 Pot";
   return "1/3 Pot";
+}
+
+function commonDeathText(action: DecisionResult["action"], character: Character) {
+  if (character.id === "bluff-assassin") return "三街小说写太长，对手却是自动跟注机。";
+  if (character.id === "boss-whale") return "把每一手都当节目投资，最后发现自己赞助了全桌。";
+  if (action === "Raise") return "把普通冲动包装成读牌灵感，结果被人用强牌收租。";
+  if (action === "Call") return "嘴上说买信息，实际一路买到河牌还没计划。";
+  if (action === "Fold") return "过度避险，把能争取的小底池也让给别人。";
+  return "控池控到失去主动权，免费牌把局面变复杂。";
 }
 
 function riskText(action: DecisionResult["action"], scenario: PokerScenario, params: DecisionParams, character: Character) {
@@ -69,14 +78,38 @@ function destinySeedFromAnswers(selectedAnswers: Answer[]) {
 function destinySizing(action: DecisionResult["action"], scenario: PokerScenario, roll: number) {
   if (action === "Check") return "0";
   if (action === "Call") {
-    if (scenario.opponentAction.toLowerCase().includes("2/3")) return "Call 2/3 Pot";
-    if (scenario.opponentAction.toLowerCase().includes("1/2")) return "Call 1/2 Pot";
-    return roll % 2 === 0 ? "Call 命运底池" : "跟注一袋风";
+    if (scenario.opponentAction.toLowerCase().includes("2/3")) return "跟注 2/3 Pot";
+    if (scenario.opponentAction.toLowerCase().includes("1/2")) return "跟注 1/2 Pot";
+    return roll % 2 === 0 ? "跟注命运底池" : "跟注一袋风";
   }
+  if (action === "Fold") return "弃牌";
   if (roll >= 98) return "All-in";
   if (roll >= 90) return "Pot";
   if (roll >= 76) return "1/2 Pot";
   return "1/3 Pot";
+}
+
+function destinyStatus(roll: number) {
+  if (roll >= 98) return "大圣暴走";
+  if (roll >= 90) return "天雷催注";
+  if (roll >= 67) return "筋斗云起飞";
+  if (roll >= 34) return "猴毛试探";
+  if (roll >= 17) return "原地画圈";
+  return "紧箍咒收紧";
+}
+
+function destinyEffect(action: DecisionResult["action"], roll: number) {
+  if (action === "Raise") return roll >= 90 ? "命运把下注尺度推高，本轮明显偏躁。" : "命运鼓励主动施压，用离谱答案给加注找理由。";
+  if (action === "Call") return "命运选择继续看剧情，随机数允许你付费围观下一幕。";
+  if (action === "Check") return "命运暂时按住筹码，让牌桌自己先说话。";
+  return "命运让你退出本轮，不解释，解释就是玄学。";
+}
+
+function destinySpecialEvent(roll: number) {
+  if (roll >= 98) return "齐天大圣 All-in 幻觉";
+  if (roll === 66) return "六六大顺但不保证顺";
+  if (roll <= 5) return "紧箍咒强制冷静";
+  return undefined;
 }
 
 function generateDestinyDecision(character: Character, scenario: PokerScenario, selectedAnswers: Answer[], destinyRoll?: number): DecisionResult {
@@ -106,7 +139,11 @@ function generateDestinyDecision(character: Character, scenario: PokerScenario, 
     reasoning: `天命人不看鸡、钱、术。他本手先掷出命运底数 ${baseRoll}，再把你的回答 ${answerLabels} 折算成荒诞扰动，得到天命波动 ${roll}。数字越高越容易把筹码往前推。`,
     riskWarning: `这不是牌理建议，而是随机娱乐机制。${roll >= 90 ? "本次命运很躁，下注尺度会明显偏大。" : "本次数字只代表小游戏里的命运噪声。"} `,
     personalityBias: character.bias,
+    commonDeath: "把随机数当宇宙圣旨，赢了叫天命，输了叫劫数。",
     destinyRoll: roll,
+    destinyStatus: destinyStatus(roll),
+    destinyEffect: destinyEffect(action, roll),
+    specialEventName: destinySpecialEvent(roll),
   };
 }
 
@@ -197,12 +234,12 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
   const key = action.toLowerCase() as "check" | "call" | "raise";
   const bestReason =
     action === "Raise"
-      ? `Raise 分最高：${character.name} 的鸡瘾值把 fold equity、听牌潜力和位置优势转化成主动压力。`
+      ? `加注分最高：${character.name} 的鸡瘾值把弃牌率、听牌潜力和位置优势转化成主动压力。`
       : action === "Call"
-        ? `Call 分最高：当前牌力、赔率和钞能力足够支撑继续看下一步剧情。`
+        ? `跟注分最高：当前牌力、赔率和钞能力足够支撑继续看下一步剧情。`
         : action === "Fold"
-          ? `Fold 分最高：牌力偏弱、赔率不理想，${character.name} 选择弃牌等候下一手。`
-          : `Check 分最高：不确定性、陷阱可能和术流控池价值超过主动施压收益。`;
+          ? `弃牌分最高：牌力偏弱、赔率不理想，${character.name} 选择弃牌等候下一手。`
+          : `过牌分最高：不确定性、陷阱可能和术流控池价值超过主动施压收益。`;
 
   return {
     action,
@@ -212,5 +249,6 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     reasoning: `${bestReason} 你的回答改变了鸡 / 钱 / 术或牌局参数，因此这不是标准 GTO 输出，而是 ${character.archetype} 的 PBTI 人格决策。`,
     riskWarning: riskText(action, scenario, params, character),
     personalityBias: character.bias,
+    commonDeath: commonDeathText(action, character),
   };
 }

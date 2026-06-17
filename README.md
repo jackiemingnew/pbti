@@ -1,16 +1,16 @@
-# PBTI：牌桌脑腐人格测试
+# PBTI：牌桌行为人格测试
 
-一个娱乐化的德州扑克人格决策小游戏。玩家选择一个虚构牌桌人格后，系统通过 OpenAI 生成本手题库，玩家回答后由本地决策引擎生成 Check / Call / Raise 建议。
+Poker Behavior Type Indicator，一个娱乐化的单人德州扑克行为人格测试 / 决策游戏。
 
-游戏核心是 PBTI 三维：
+玩家选择一个虚构牌桌人格后，回答 1-2 个随机问题，系统会结合角色特性和回答内容生成牌桌行动：弃牌 / 过牌 / 跟注 / 加注。
 
-- 鸡：鸡瘾值，代表多想偷鸡、下注讲故事、主动 bet / raise / bluff。
-- 钱：钞能力，代表对筹码波动的承受力，以及愿不愿意用钱买剧情。
-- 术：技术流，代表范围、赔率、下注尺度、GTO/exploit 的理解。
+## PBTI 三维
+
+- 鸡：你有多想偷。
+- 钱：你有多敢看。
+- 术：你有多会把冲动包装成理论。
 
 天命人悟空是三界之外角色，不显示基础三维；每轮决策开始时生成 `destinyRoll`，通过 Destiny System 决定行动倾向。
-
-首页展示 PBTI 人格入口；“测试识别”页面可读取并预览牌局图片，预留未来视觉模型识别牌局信息。
 
 ## 技术栈
 
@@ -18,7 +18,7 @@
 - Vite
 - Tailwind CSS
 - Vercel Serverless API + 前端静态页面
-- 无真钱或支付系统
+- 无登录、无数据库、无真钱、无支付系统
 
 ## 本地运行
 
@@ -33,30 +33,29 @@ npm run dev
 http://localhost:5173/
 ```
 
-如果当前 shell 找不到系统 `node` / `npm`，可以使用 Codex bundled Node 路径运行对应命令。
+检查和构建：
+
+```bash
+npm run check
+npm run build
+```
 
 ## API Key
 
-项目不会把 OpenAI API key 写进源码。推荐在 `.env.local` 或 Vercel Project Environment Variables 里配置服务端变量：
+项目不会把 OpenAI API key 写进前端源码。请在 `.env.local` 或 Vercel Project Environment Variables 里配置服务端变量：
 
 ```bash
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
-部署到 Vercel 后，前端会请求：
+前端只请求同域接口：
 
 ```text
 /api/generate-questions
 ```
 
-该接口由服务端读取 `OPENAI_API_KEY`，不会把 key 暴露给浏览器。
-
-本地 `vite dev` 已内置 `/api/generate-questions` 中间件，会读取 `.env.local`。如果服务端 API 不可用，也可以在页面里输入个人 key 作为兜底：
-
-- key 只保存在当前浏览器会话的 `sessionStorage`
-- 不提交到 GitHub
-- 仅当 `/api/generate-questions` 不可用时，才由浏览器直接请求 OpenAI API
+该接口由服务端读取 `OPENAI_API_KEY`，不会把 key 暴露给浏览器。若接口不可用，页面会使用 `data/characters.ts` 中的本地 fallback 题库，保证游戏流程不中断。
 
 可选模型配置：
 
@@ -66,8 +65,6 @@ VITE_OPENAI_MODEL=gpt-4.1-mini
 ```
 
 如果不配置，默认使用 `gpt-4.1-mini`。Vercel 服务端优先使用 `OPENAI_MODEL`。
-
-注意：浏览器兜底模式更适合个人项目和临时演示。用户输入的 key 会出现在自己浏览器发出的网络请求里，这是前端直连 API 的天然限制。
 
 ### 本地 ClashX 代理
 
@@ -99,7 +96,7 @@ npm run build
 dist/
 ```
 
-可以部署到 GitHub Pages、Vercel、Netlify 或任意静态站点服务。
+推荐部署到 Vercel，这样 `/api/generate-questions` 会作为 Serverless Function 工作。
 
 ## 代码结构
 
@@ -109,6 +106,9 @@ src/
   main.tsx
   index.css
   components/
+    ActionChip.tsx
+    CharacterCard.tsx
+    ResultCard.tsx
   data/
     characters.ts
     scenarios.ts
@@ -116,6 +116,7 @@ src/
     decisionEngine.ts
   services/
     questionApi.ts
+    questionCache.ts
     questionFormat.ts
   config/
     questionPrompt.ts
@@ -127,7 +128,5 @@ server/
 public/
   avatars/
 ```
-
-`data/characters.ts` 中仍保留本地 fallback 题库；当 OpenAI 请求失败或用户未填写 key 时，页面会临时使用 fallback，避免游戏流程中断。
 
 免责声明：本游戏仅用于娱乐与策略思维训练，不构成赌博建议。

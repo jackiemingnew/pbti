@@ -14,8 +14,6 @@ import {
 import { generateQuestions } from "./services/questionApi";
 import type { Answer, Character, DecisionResult, PokerScenario, Question } from "./types";
 
-declare const __OPENAI_KEY_SUFFIX__: string;
-
 type Page = "home" | "result" | "promptAdmin";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
@@ -23,6 +21,8 @@ const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
 const randomQuestionCount = () => (Math.random() < 0.72 ? 1 : 2);
 const PROMPT_STORAGE_KEY = "pbti-question-prompt";
 const DESTINY_PROMPT_STORAGE_KEY = "pbti-destiny-question-prompt";
+const APP_ENV = import.meta.env.VITE_APP_ENV || import.meta.env.MODE || "development";
+const SHOW_PROMPT_ADMIN = APP_ENV !== "production";
 
 const OFFLINE_DECISION_CONTEXT: PokerScenario = {
   id: "offline-pbti-decision",
@@ -165,7 +165,7 @@ function App() {
     const existing = inflightQuestionsRef.current.get(requestKey);
     if (existing) return existing;
 
-    const request = generateQuestions(nextCharacter, prompt, "", count, destinyStylePrompt).then((questions) => {
+    const request = generateQuestions(nextCharacter, prompt, count, destinyStylePrompt).then((questions) => {
       const normalizedQuestions = questions.slice(0, count);
       storeQuestionSet(nextCharacter, prompt, destinyStylePrompt, normalizedQuestions);
       return normalizedQuestions;
@@ -197,12 +197,16 @@ function App() {
     if (forceEasterEgg || Math.random() < 0.05) {
       setResult({
         action: "Fold",
-        sizing: "Fold",
+        sizing: "弃牌",
         scoreBreakdown: { checkScore: 0, callScore: 0, raiseScore: 0, foldScore: 12 },
         voiceLine: `宇宙给你递了一张牌：弃牌。${forceEasterEgg ? "彩蛋模式已确认。" : "这不是懦弱，是命运。"}`,
         reasoning: `你触发了隐藏彩蛋（5% 概率${forceEasterEgg ? "，本次为强制触发" : ""}）！无论你的答案是什么，${character.name} 选择了弃牌。`,
         riskWarning: "彩蛋仅用于娱乐，与真实牌技无关。",
         personalityBias: "彩蛋模式：今天宇宙不让你入池。",
+        commonDeath: "把 5% 彩蛋当成长期策略，下次还真以为宇宙在发短信。",
+        destinyStatus: "宇宙改判",
+        destinyEffect: "本轮所有分数被彩蛋覆盖，强制弃牌。",
+        specialEventName: "隐藏彩蛋：宇宙弃牌令",
         easterEgg: true,
       });
       return;
@@ -281,16 +285,18 @@ function App() {
               </span>
               <span>
                 <span className="block text-sm font-black tracking-[0.24em] text-amber-500">PBTI TEST</span>
-                <span className="block text-lg font-black text-amber-100">牌桌行为人格</span>
+                <span className="block text-lg font-black text-amber-100">PBTI：牌桌行为人格测试</span>
               </span>
             </button>
             <div className="flex items-center gap-2">
-              <button
-                onClick={openPromptAdmin}
-                className="rounded-full border border-zinc-700 bg-zinc-950/70 px-4 py-2 text-sm font-bold text-zinc-300 transition hover:border-amber-500 hover:text-amber-100"
-              >
-                Prompt 配置
-              </button>
+              {SHOW_PROMPT_ADMIN && (
+                <button
+                  onClick={openPromptAdmin}
+                  className="rounded-full border border-zinc-800 bg-zinc-950/50 px-3 py-1.5 text-xs font-semibold text-zinc-500 transition hover:border-amber-500/60 hover:text-amber-200"
+                >
+                  Dev Prompt
+                </button>
+              )}
               {character && page === "result" && (
                 <button
                   onClick={switchToRandomCharacter}
@@ -369,15 +375,17 @@ function HomePage({
     <section className="w-full space-y-6 sm:space-y-10">
       <div className="grid items-center gap-6 lg:gap-8 lg:grid-cols-[1fr_1fr]">
         <div className="max-w-3xl">
-          <p className="text-sm font-black uppercase tracking-[0.32em] text-amber-500">Poker Behavior Type Indicator</p>
+          <p className="text-sm font-black tracking-[0.18em] text-amber-500">Poker Behavior Type Indicator</p>
           <h1 className="mt-4 text-4xl font-black leading-tight text-amber-100 sm:text-6xl lg:text-7xl">PBTI：牌桌行为人格测试</h1>
           <p className="mt-4 text-lg leading-8 text-zinc-300">鸡 / 钱 / 术，三维一测，看看你在牌桌上到底是哪种人。</p>
           <p className="mt-4 max-w-2xl leading-7 text-zinc-400">
-            你以为你在打牌，其实你在暴露行为模式。
+            鸡：你有多想偷。
             <br />
-            有人靠气场，有人靠技术，有人靠钞能力，有人靠天命。
+            钱：你有多敢看。
             <br />
-            选择角色，回答 1～2 个即时问题，看看你的牌桌人格如何做决策。
+            术：你有多会把冲动包装成理论。
+            <br />
+            选择角色，回答几个问题，系统会生成你的牌桌行动：弃牌 / 过牌 / 跟注 / 加注。
           </p>
           <button
             onClick={onRandomCharacter}
@@ -415,11 +423,6 @@ function HomePage({
 
       <HowToPlaySection />
 
-      {__OPENAI_KEY_SUFFIX__ && (
-        <div className="flex justify-center">
-          <ApiKeyIndicator suffix={__OPENAI_KEY_SUFFIX__} />
-        </div>
-      )}
       <div className="flex justify-center">
         <label
           className="inline-flex cursor-pointer items-center gap-2 text-xs transition hover:text-purple-400"
@@ -444,21 +447,21 @@ function CoreConceptsSection() {
       emoji: "🐔",
       label: "鸡",
       title: "偷鸡欲 (Chicken)",
-      description: "决定你有多倾向于主动施压、诈唬、偷池。鸡瘾值越高，越容易把空气牌演成长篇小说。",
+      description: "你有多想偷。鸡瘾值越高，越容易主动施压、讲故事、把空气牌演成长篇小说。",
       color: "border-red-500/40",
     },
     {
       emoji: "💰",
       label: "钱",
       title: "钞能力 (Money)",
-      description: "筹码承受力和娱乐预算。钱值越高，越能淡定跟注大注、买剧情、扛波动。",
+      description: "你有多敢看。钱值越高，越能承受波动、跟注压力、用筹码买下一幕剧情。",
       color: "border-amber-500/40",
     },
     {
       emoji: "🧠",
       label: "术",
       title: "技术流 (Skill)",
-      description: "对范围、赔率、下注尺度和 GTO / exploit 的理解。术越高，越能在复杂局面找到合理路径。",
+      description: "你有多会把冲动包装成理论。术越高，越擅长用范围、赔率和尺度解释自己的选择。",
       color: "border-cyan-500/40",
     },
     {
@@ -507,8 +510,8 @@ function HowToPlaySection() {
     },
     {
       step: 3,
-      title: "获得 Action 建议",
-      description: "系统综合角色属性、你的回答和 PBTI 决策引擎，给出 Check / Call / Raise 建议，附分数拆解和风险提示。",
+      title: "获得行动建议",
+      description: "系统综合角色属性、你的回答和 PBTI 决策引擎，给出弃牌 / 过牌 / 跟注 / 加注建议，附分数拆解和风险提示。",
     },
   ];
 
@@ -725,7 +728,7 @@ function ResultFlow({
           <div className="space-y-4">
             {isLoading && (
               <div className="rounded-2xl border border-amber-500/35 bg-amber-400/10 p-5 text-sm font-bold text-amber-100">
-                正在用 OpenAI 生成本轮随机题目...
+                正在生成本轮随机题目...
               </div>
             )}
 
@@ -772,7 +775,7 @@ function ResultFlow({
               disabled={!answeredAllQuestions || isLoading}
               className="rounded-xl bg-amber-400 px-5 py-3 font-black text-zinc-950 transition enabled:hover:scale-105 enabled:hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
             >
-              揭晓人格 Action
+              揭晓牌桌行动
             </button>
           </div>
         </div>
@@ -813,15 +816,5 @@ function CompactStat({ label, value }: { label: string; value: number }) {
       </div>
       <span className="text-zinc-400">{value}</span>
     </div>
-  );
-}
-function ApiKeyIndicator({ suffix }: { suffix: string }) {
-  return (
-    <section className="rounded-3xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 shadow-inner">
-      <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
-        <span>OPENAI_API_KEY</span>
-        <span className="tracking-[0.1em] text-zinc-600">···{suffix}</span>
-      </div>
-    </section>
   );
 }

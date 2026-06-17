@@ -1,5 +1,12 @@
 import type { DecisionResult } from "../types";
 
+export const actionLabels: Record<DecisionResult["action"], string> = {
+  Fold: "弃牌",
+  Check: "过牌",
+  Call: "跟注",
+  Raise: "加注",
+};
+
 const actionClasses: Record<DecisionResult["action"], string> = {
   Check: "from-emerald-500 to-teal-800 shadow-emerald-900/50",
   Call: "from-sky-500 to-blue-900 shadow-blue-900/50",
@@ -10,9 +17,9 @@ const actionClasses: Record<DecisionResult["action"], string> = {
 export function ActionChip({ action }: { action: DecisionResult["action"] }) {
   return (
     <div
-      className={`inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-amber-200 bg-gradient-to-br ${actionClasses[action]} text-2xl font-black uppercase tracking-wide text-white shadow-2xl`}
+      className={`inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-amber-200 bg-gradient-to-br ${actionClasses[action]} text-3xl font-black tracking-wide text-white shadow-2xl`}
     >
-      {action}
+      {actionLabels[action]}
     </div>
   );
 }

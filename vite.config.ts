@@ -7,19 +7,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
  return {
-    define: {
-      __OPENAI_KEY_SUFFIX__: JSON.stringify(exposeKeySuffix(env.OPENAI_API_KEY)),
-    },
    plugins: [react(), localQuestionApi(env)],
  };
 });
-
-function exposeKeySuffix(key: string | undefined): string {
-  if (!key?.trim()) return "";
-  const cleaned = key.trim();
-  if (cleaned.length <= 4) return cleaned;
-  return cleaned.slice(-4);
-}
 
 function localQuestionApi(env: Record<string, string>): Plugin {
   return {
