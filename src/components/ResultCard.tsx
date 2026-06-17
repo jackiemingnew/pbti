@@ -11,6 +11,7 @@ type ResultCardProps = {
   onAgain: () => void;
   onChangeCharacter: () => void;
   onHome: () => void;
+  onSummary: () => void;
   currentFeedback?: DecisionFeedback;
   onFeedback: (feedback: DecisionFeedback) => void;
 };
@@ -135,7 +136,18 @@ function DetailDisclosure({ title, children, defaultOpen = false }: { title: str
   );
 }
 
-export function ResultCard({ character, questions, selectedAnswers, result, onAgain, onChangeCharacter, onHome, currentFeedback, onFeedback }: ResultCardProps) {
+export function ResultCard({
+  character,
+  questions,
+  selectedAnswers,
+  result,
+  onAgain,
+  onChangeCharacter,
+  onHome,
+  onSummary,
+  currentFeedback,
+  onFeedback,
+}: ResultCardProps) {
   const passScore = Math.max(result.scoreBreakdown.checkScore, result.scoreBreakdown.foldScore);
   const scoreBars = [
     { label: "过牌/弃牌", score: passScore, color: "bg-emerald-500", isWinner: result.action === "Check" || result.action === "Fold" },
@@ -171,10 +183,6 @@ export function ResultCard({ character, questions, selectedAnswers, result, onAg
             <div>
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-500">最终行动</p>
               <h2 className="mt-1 text-4xl font-black text-amber-100 sm:text-5xl">{actionLabels[result.action]}</h2>
-            </div>
-            <div className="rounded-xl border border-amber-500/35 bg-amber-400/10 px-4 py-2">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">下注尺度</p>
-              <p className="mt-1 text-xl font-black text-amber-100">{result.sizing}</p>
             </div>
           </div>
 
@@ -301,31 +309,34 @@ export function ResultCard({ character, questions, selectedAnswers, result, onAg
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-black tracking-[0.16em] text-amber-400">本手反馈</h3>
-            <p className="mt-1 text-sm text-zinc-400">简单记一笔，之后会进入你的牌桌画像统计。</p>
+            <h3 className="text-sm font-black tracking-[0.16em] text-amber-400">{currentFeedback ? "反馈已记录" : "本手反馈"}</h3>
+            <p className="mt-1 text-sm text-zinc-400">
+              {currentFeedback ? `本手已标记为${currentFeedback === "win" ? "赢了" : "输了"}，已进入你的牌桌画像统计。` : "简单记一笔，之后会进入你的牌桌画像统计。"}
+            </p>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
+          {currentFeedback ? (
             <button
-              onClick={() => onFeedback("win")}
-              className={`rounded-xl border px-4 py-2 text-sm font-black transition ${
-                currentFeedback === "win"
-                  ? "border-emerald-300 bg-emerald-300 text-zinc-950"
-                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-400 hover:text-zinc-950"
-              }`}
+              onClick={onSummary}
+              className="w-full rounded-xl border border-amber-400/60 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-zinc-950 sm:w-auto"
             >
-              赢了
+              查看结果统计
             </button>
-            <button
-              onClick={() => onFeedback("loss")}
-              className={`rounded-xl border px-4 py-2 text-sm font-black transition ${
-                currentFeedback === "loss"
-                  ? "border-red-300 bg-red-300 text-zinc-950"
-                  : "border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-400 hover:text-zinc-950"
-              }`}
-            >
-              输了
-            </button>
-          </div>
+          ) : (
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
+              <button
+                onClick={() => onFeedback("win")}
+                className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-black text-emerald-100 transition hover:bg-emerald-400 hover:text-zinc-950"
+              >
+                赢了
+              </button>
+              <button
+                onClick={() => onFeedback("loss")}
+                className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-black text-red-100 transition hover:bg-red-400 hover:text-zinc-950"
+              >
+                输了
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

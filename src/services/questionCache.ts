@@ -1,4 +1,5 @@
 import type { Character, Question } from "../types";
+import { ensureUniqueQuestionAnswerIds } from "./questionFormat";
 
 type CachedQuestionSet = {
   createdAt: number;
@@ -7,7 +8,7 @@ type CachedQuestionSet = {
   signature: string;
 };
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const MAX_SETS_PER_COUNT = 4;
 const RECENT_LIMIT = 10;
@@ -39,20 +40,21 @@ export function takeCachedQuestionSet(character: Character, prompt: string, dest
 
   writeCache(key, cache);
   rememberRecent(recentKey, set.signature);
-  return set.questions;
+  return ensureUniqueQuestionAnswerIds(set.questions);
 }
 
 export function storeQuestionSet(character: Character, prompt: string, destinyPrompt: string, questions: Question[]) {
   if (!questions.length) return;
 
   const key = buildQuestionCacheKey(character, prompt, destinyPrompt);
-  const signature = getQuestionSignature(questions);
+  const normalizedQuestions = ensureUniqueQuestionAnswerIds(questions);
+  const signature = getQuestionSignature(normalizedQuestions);
   const existing = readCache(key).filter((set) => set.signature !== signature);
   const next = [
     {
       createdAt: Date.now(),
-      questionCount: questions.length,
-      questions,
+      questionCount: normalizedQuestions.length,
+      questions: normalizedQuestions,
       signature,
     },
     ...existing,
@@ -63,7 +65,7 @@ export function storeQuestionSet(character: Character, prompt: string, destinyPr
 
 export function rememberQuestionSet(character: Character, prompt: string, destinyPrompt: string, questions: Question[]) {
   const key = buildQuestionCacheKey(character, prompt, destinyPrompt);
-  rememberRecent(`${key}:recent`, getQuestionSignature(questions));
+  rememberRecent(`${key}:recent`, getQuestionSignature(ensureUniqueQuestionAnswerIds(questions)));
 }
 
 function readCache(key: string): CachedQuestionSet[] {
@@ -74,14 +76,16 @@ function readCache(key: string): CachedQuestionSet[] {
   try {
     const parsed = JSON.parse(raw) as CachedQuestionSet[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((set) => {
-      return (
-        Array.isArray(set.questions) &&
-        typeof set.signature === "string" &&
-        typeof set.createdAt === "number" &&
-        now - set.createdAt < CACHE_TTL_MS
-      );
-    });
+    return parsed
+      .filter((set) => {
+        return (
+          Array.isArray(set.questions) &&
+          typeof set.signature === "string" &&
+          typeof set.createdAt === "number" &&
+          now - set.createdAt < CACHE_TTL_MS
+        );
+      })
+      .map((set) => ({ ...set, questions: ensureUniqueQuestionAnswerIds(set.questions) }));
   } catch {
     return [];
   }

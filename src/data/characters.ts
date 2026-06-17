@@ -4,22 +4,22 @@ const pressureAnswers = [
   {
     id: "story-fake",
     label: "他故事太薄，可以偷",
-    modifiers: { foldEquity: 1.5, chicken: 1, raiseScoreBonus: 1 },
+    modifiers: { foldEquity: 2.2, chicken: 1.6, raiseScoreBonus: 2.1, callScoreBonus: -0.5 },
   },
   {
     id: "story-real",
     label: "他像真的有牌",
-    modifiers: { opponentAggression: 1.2, uncertainty: 0.8, chicken: -0.6, callScoreBonus: 0.4 },
+    modifiers: { opponentAggression: 1.4, uncertainty: 1.2, chicken: -1.2, money: -0.6, foldScoreBonus: 1.4, checkScoreBonus: 0.8 },
   },
   {
     id: "story-priced",
     label: "价格合理，先买一张剧情票",
-    modifiers: { potOdds: 1, money: 0.8, callScoreBonus: 0.8 },
+    modifiers: { potOdds: 1.5, money: 1.5, callScoreBonus: 2, raiseScoreBonus: -0.5 },
   },
   {
     id: "story-range",
     label: "从范围看他代表不了太多强牌",
-    modifiers: { foldEquity: 1, skill: 1, raiseScoreBonus: 0.8 },
+    modifiers: { foldEquity: 1.8, skill: 1.4, raiseScoreBonus: 1.8 },
   },
 ];
 
@@ -27,22 +27,22 @@ const barrelAnswers = [
   {
     id: "barrel-always",
     label: "敢，Turn 继续讲第二章",
-    modifiers: { chicken: 1.4, foldEquity: 0.9, raiseScoreBonus: 1 },
+    modifiers: { chicken: 2.2, foldEquity: 1.5, raiseScoreBonus: 2.2, callScoreBonus: -0.6 },
   },
   {
     id: "barrel-good-card",
     label: "只在好转牌继续",
-    modifiers: { skill: 1.2, drawPotential: 0.8, raiseScoreBonus: 0.4, callScoreBonus: 0.3 },
+    modifiers: { skill: 1.6, drawPotential: 1.1, raiseScoreBonus: 1, callScoreBonus: 0.7 },
   },
   {
     id: "barrel-wallet",
     label: "先看价格，太贵就不演",
-    modifiers: { money: -0.4, potOdds: 0.7, callScoreBonus: 0.5 },
+    modifiers: { money: -1, potOdds: 1, callScoreBonus: 1.2, checkScoreBonus: 0.7 },
   },
   {
     id: "barrel-nope",
     label: "不敢，打一枪就收",
-    modifiers: { chicken: -1.2, uncertainty: 1, checkScoreBonus: 0.8 },
+    modifiers: { chicken: -2, uncertainty: 1.5, checkScoreBonus: 1.8, foldScoreBonus: 0.8 },
   },
 ];
 
@@ -65,10 +65,10 @@ export const characters: Character[] = [
         id: "king-q2",
         text: "如果你现在主动加压，他有没有能力继续扛？",
         answers: [
-          { id: "king-folds", label: "他顶不住，会把中等牌丢掉", modifiers: { foldEquity: 1.4, chicken: 0.8, raiseScoreBonus: 1 } },
-          { id: "king-calls", label: "他会跟，但价格能让他难受", modifiers: { money: 0.5, skill: 0.7, raiseScoreBonus: 0.5 } },
-          { id: "king-rich", label: "他也有钞能力，不怕波动", modifiers: { foldEquity: -1, opponentAggression: 0.8, callScoreBonus: 0.8 } },
-          { id: "king-trap", label: "他可能在等我把池子做大", modifiers: { trapPotential: 1.3, chicken: -0.6, checkScoreBonus: 0.9 } },
+          { id: "king-folds", label: "他顶不住，会把中等牌丢掉", modifiers: { foldEquity: 2, chicken: 1.4, raiseScoreBonus: 2.1 } },
+          { id: "king-calls", label: "他会跟，但价格能让他难受", modifiers: { money: 1, skill: 1, callScoreBonus: 1.3, raiseScoreBonus: 0.8 } },
+          { id: "king-rich", label: "他也有钞能力，不怕波动", modifiers: { foldEquity: -1.4, opponentAggression: 1.2, callScoreBonus: 1.7, raiseScoreBonus: -0.8 } },
+          { id: "king-trap", label: "他可能在等我把池子做大", modifiers: { trapPotential: 1.8, chicken: -1.2, checkScoreBonus: 2, foldScoreBonus: 0.6 } },
         ],
       },
     ],
@@ -98,10 +98,10 @@ export const characters: Character[] = [
         id: "bluff-q1",
         text: "对手现在像不像拿着一手想弃又舍不得弃的牌？",
         answers: [
-          { id: "folding-hard", label: "很像，他的牌卡在中间", modifiers: { foldEquity: 2, chicken: 1.2, raiseScoreBonus: 1.4 } },
-          { id: "calling-station", label: "不像，他今天按钮是焊死在 Call 上", modifiers: { foldEquity: -2, money: 0.8, callScoreBonus: 1 } },
-          { id: "nervous", label: "他动作很虚，但还没崩", modifiers: { foldEquity: 0.9, skill: 0.5, raiseScoreBonus: 0.8 } },
-          { id: "unknown-bluff", label: "看不清，硬演会穿帮", modifiers: { chicken: -1, uncertainty: 1.2, checkScoreBonus: 0.8 } },
+          { id: "folding-hard", label: "很像，他的牌卡在中间", modifiers: { foldEquity: 2.5, chicken: 1.8, raiseScoreBonus: 2.4 } },
+          { id: "calling-station", label: "不像，他今天按钮是焊死在 Call 上", modifiers: { foldEquity: -2.2, money: 1.2, callScoreBonus: 2, raiseScoreBonus: -1 } },
+          { id: "nervous", label: "他动作很虚，但还没崩", modifiers: { foldEquity: 1.4, skill: 0.8, raiseScoreBonus: 1.5 } },
+          { id: "unknown-bluff", label: "看不清，硬演会穿帮", modifiers: { chicken: -2, uncertainty: 1.8, checkScoreBonus: 2, foldScoreBonus: 0.8 } },
         ],
       },
       { id: "bluff-q2", text: "如果你现在开火，Turn 还敢继续写第二章吗？", answers: barrelAnswers },
@@ -132,20 +132,20 @@ export const characters: Character[] = [
         id: "boss-q1",
         text: "这手牌有没有值得花钱看的剧情？",
         answers: [
-          { id: "showtime", label: "太有节目了，必须看完", modifiers: { money: 1.5, callScoreBonus: 1.1 } },
-          { id: "boring", label: "没意思，不给导演加预算", modifiers: { money: -1, uncertainty: 0.8, checkScoreBonus: 0.9 } },
-          { id: "hero-moment", label: "赢了能吹一晚上", modifiers: { chicken: 0.8, money: 0.8, raiseScoreBonus: 0.8, callScoreBonus: 0.6 } },
-          { id: "expensive-show", label: "节目可以有，但票价要合理", modifiers: { potOdds: 1, skill: 0.4, callScoreBonus: 0.7 } },
+          { id: "showtime", label: "太有节目了，必须看完", modifiers: { money: 2.2, callScoreBonus: 2.4, foldScoreBonus: -0.8 } },
+          { id: "boring", label: "没意思，不给导演加预算", modifiers: { money: -2.4, chicken: -1.4, potOdds: -1.2, uncertainty: 1.8, checkScoreBonus: 2.2, foldScoreBonus: 2.2 } },
+          { id: "hero-moment", label: "赢了能吹一晚上", modifiers: { chicken: 2.3, foldEquity: 1.4, money: 0.6, raiseScoreBonus: 2.5, callScoreBonus: -0.5 } },
+          { id: "expensive-show", label: "节目可以有，但票价要合理", modifiers: { potOdds: 1.5, skill: 0.8, callScoreBonus: 1.8, checkScoreBonus: 0.6 } },
         ],
       },
       {
         id: "boss-q2",
         text: "你是不是觉得他在偷你的剧情版权？",
         answers: [
-          { id: "stealing-me", label: "就是在偷我，抓他", modifiers: { opponentAggression: 1, money: 1, callScoreBonus: 1.2 } },
-          { id: "not-sure-boss", label: "不知道，但我想看摊牌", modifiers: { money: 1.4, callScoreBonus: 1 } },
-          { id: "real-hand-boss", label: "他可能真有，别送太多", modifiers: { chicken: -0.8, foldEquity: -1, callScoreBonus: 0.3 } },
-          { id: "punish-boss", label: "偷我就加价惩罚", modifiers: { chicken: 0.8, raiseScoreBonus: 0.9 } },
+          { id: "stealing-me", label: "就是在偷我，抓他", modifiers: { opponentAggression: 1.2, money: 1.4, callScoreBonus: 2.2 } },
+          { id: "not-sure-boss", label: "不知道，但我想看摊牌", modifiers: { money: 2, showdownValue: 1.2, callScoreBonus: 2 } },
+          { id: "real-hand-boss", label: "他可能真有，别送太多", modifiers: { chicken: -1.8, money: -1.6, foldEquity: -1.5, uncertainty: 1.5, checkScoreBonus: 1.6, foldScoreBonus: 2 } },
+          { id: "punish-boss", label: "偷我就加价惩罚", modifiers: { chicken: 2.2, foldEquity: 1.3, raiseScoreBonus: 2.5, callScoreBonus: -0.5 } },
         ],
       },
     ],

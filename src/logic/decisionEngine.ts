@@ -5,6 +5,10 @@ const clampStat = (score: number) => Math.max(0, Math.min(10, Number(score.toFix
 
 function mergeModifiers(params: DecisionParams, selectedAnswers: Answer[]) {
   const modified: DecisionParams = { ...params };
+  const paramDeltas = Object.keys(params).reduce((acc, key) => {
+    acc[key as keyof DecisionParams] = 0;
+    return acc;
+  }, {} as DecisionParams);
   const bonuses = {
     foldScoreBonus: 0,
     raiseScoreBonus: 0,
@@ -18,7 +22,9 @@ function mergeModifiers(params: DecisionParams, selectedAnswers: Answer[]) {
   for (const answer of selectedAnswers) {
     const modifiers = answer.modifiers as DecisionModifier;
     for (const key of Object.keys(params) as Array<keyof DecisionParams>) {
-      modified[key] = Math.max(0, Math.min(10, modified[key] + (modifiers[key] ?? 0)));
+      const delta = modifiers[key] ?? 0;
+      paramDeltas[key] += delta;
+      modified[key] = Math.max(0, Math.min(10, modified[key] + delta));
     }
     bonuses.raiseScoreBonus += modifiers.raiseScoreBonus ?? 0;
     bonuses.callScoreBonus += modifiers.callScoreBonus ?? 0;
@@ -29,7 +35,7 @@ function mergeModifiers(params: DecisionParams, selectedAnswers: Answer[]) {
     bonuses.skill += modifiers.skill ?? 0;
   }
 
-  return { params: modified, bonuses };
+  return { params: modified, bonuses, paramDeltas };
 }
 
 function chooseSizing(action: DecisionResult["action"], scenario: PokerScenario, params: DecisionParams, character: Character) {
@@ -166,7 +172,7 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     throw new Error(`${character.name} 缺少 PBTI 三维属性，无法使用公式决策。`);
   }
 
-  const { params, bonuses } = mergeModifiers(scenario.params, selectedAnswers);
+  const { params, bonuses, paramDeltas } = mergeModifiers(scenario.params, selectedAnswers);
   const stats = {
     chicken: clampStat(character.stats.chicken + bonuses.chicken),
     money: clampStat(character.stats.money + bonuses.money),
@@ -180,7 +186,13 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     params.drawPotential * 0.15 +
     params.positionAdvantage * 0.12 -
     params.opponentAggression * 0.08 +
-    bonuses.raiseScoreBonus;
+    bonuses.raiseScoreBonus * 2.35 +
+    bonuses.chicken * 0.55 +
+    bonuses.skill * 0.2 +
+    paramDeltas.foldEquity * 0.55 +
+    paramDeltas.drawPotential * 0.25 +
+    paramDeltas.positionAdvantage * 0.2 -
+    paramDeltas.opponentAggression * 0.35;
 
   let callScore =
     params.handStrength * 0.25 +
@@ -189,7 +201,11 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     stats.skill * 0.12 +
     params.opponentAggression * 0.1 +
     params.showdownValue * 0.1 +
-    bonuses.callScoreBonus;
+    bonuses.callScoreBonus * 2.15 +
+    bonuses.money * 0.45 +
+    paramDeltas.potOdds * 0.5 +
+    paramDeltas.showdownValue * 0.25 +
+    paramDeltas.opponentAggression * 0.15;
 
   let checkScore =
     (10 - stats.chicken) * 0.22 +
@@ -197,7 +213,12 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     params.showdownValue * 0.16 +
     params.trapPotential * 0.18 +
     stats.skill * 0.08 +
-    bonuses.checkScoreBonus;
+    bonuses.checkScoreBonus * 2.25 -
+    bonuses.chicken * 0.4 +
+    bonuses.skill * 0.25 +
+    paramDeltas.uncertainty * 0.45 +
+    paramDeltas.trapPotential * 0.25 +
+    paramDeltas.showdownValue * 0.2;
 
   let foldScore =
     (10 - params.handStrength) * 0.20 +
@@ -207,7 +228,13 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     params.opponentAggression * 0.12 +
     (10 - stats.chicken) * 0.10 +
     (10 - stats.money) * 0.07 +
-    bonuses.foldScoreBonus;
+    bonuses.foldScoreBonus * 2.5 -
+    bonuses.money * 0.35 -
+    bonuses.chicken * 0.3 +
+    paramDeltas.uncertainty * 0.5 +
+    paramDeltas.opponentAggression * 0.25 -
+    paramDeltas.potOdds * 0.35 -
+    paramDeltas.showdownValue * 0.2;
 
   const facingBet = scenario.opponentAction.toLowerCase().includes("bet");
   if (facingBet) {
@@ -215,8 +242,8 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
     callScore += 0.7;
   }
 
-  if (character.id === "bluff-assassin") raiseScore += params.foldEquity > 5 ? 0.9 : -0.5;
-  if (character.id === "boss-whale") callScore += 1.1;
+  if (character.id === "bluff-assassin") raiseScore += params.foldEquity > 5 ? 0.55 : -0.35;
+  if (character.id === "boss-whale") callScore += 0.25;
   if (character.id === "gto-tank") {
     callScore += params.potOdds > 6 ? 0.6 : 0;
     raiseScore += params.positionAdvantage > 7 ? 0.4 : 0;
@@ -231,7 +258,7 @@ export function generateDecision(character: Character, scenario: PokerScenario, 
   };
 
   let action: DecisionResult["action"] = "Check";
-  if (facingBet && scoreBreakdown.foldScore >= scoreBreakdown.raiseScore && scoreBreakdown.foldScore >= scoreBreakdown.callScore) {
+  if (scoreBreakdown.foldScore >= scoreBreakdown.raiseScore && scoreBreakdown.foldScore >= scoreBreakdown.callScore && scoreBreakdown.foldScore >= scoreBreakdown.checkScore) {
     action = "Fold";
   } else if (scoreBreakdown.raiseScore >= scoreBreakdown.callScore && scoreBreakdown.raiseScore >= scoreBreakdown.checkScore) {
     action = "Raise";

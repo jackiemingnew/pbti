@@ -449,6 +449,7 @@ function App() {
                 onAgain={playAnotherHand}
                 onChangeCharacter={switchToRandomCharacter}
                 onHome={goHome}
+                onSummary={openSummary}
                 currentFeedback={historyEntries.find((entry) => entry.id === currentDecisionId)?.feedback}
                 onFeedback={setDecisionFeedback}
               />
@@ -1455,6 +1456,7 @@ function ResultFlow({
   onAgain,
   onChangeCharacter,
   onHome,
+  onSummary,
   currentFeedback,
   onFeedback,
 }: {
@@ -1472,6 +1474,7 @@ function ResultFlow({
   onAgain: () => void;
   onChangeCharacter: () => void;
   onHome: () => void;
+  onSummary: () => void;
   currentFeedback?: DecisionFeedback;
   onFeedback: (feedback: DecisionFeedback) => void;
 }) {
@@ -1537,16 +1540,16 @@ function ResultFlow({
             )}
 
             {questions.map((q, qi) => {
-              const selectedId = selectedAnswers[qi]?.id;
+              const selectedAnswer = selectedAnswers[qi];
               return (
                 <div key={q.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
                   <p className="font-bold text-zinc-100">{q.text}</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {q.answers.map((a) => {
-                      const sel = selectedId === a.id;
+                    {q.answers.map((a, answerIndex) => {
+                      const sel = selectedAnswer === a || (selectedAnswer?.id === a.id && selectedAnswer?.label === a.label);
                       return (
                         <button
-                          key={a.id}
+                          key={`${a.id}-${answerIndex}`}
                           onClick={() => onAnswer(qi, a)}
                           disabled={isRevealing}
                           className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold transition hover:scale-[1.01] ${
@@ -1590,6 +1593,7 @@ function ResultFlow({
           onAgain={onAgain}
           onChangeCharacter={onChangeCharacter}
           onHome={onHome}
+          onSummary={onSummary}
           currentFeedback={currentFeedback}
           onFeedback={onFeedback}
         />

@@ -90,17 +90,20 @@ export function questionSchema(questionCount = 2) {
 
 export function normalizeQuestions(value: unknown): Question[] {
   if (!Array.isArray(value)) return [];
+  const usedQuestionIds = new Set<string>();
   return value
     .slice(0, 2)
     .map((question, questionIndex) => {
       const item = question as { id?: unknown; text?: unknown; answers?: unknown };
       const answers = Array.isArray(item.answers) ? item.answers : [];
+      const usedAnswerIds = new Set<string>();
+      const questionId = uniqueId(safeId(item.id, `ai-q-${questionIndex + 1}`), usedQuestionIds);
       return {
-        id: safeId(item.id, `ai-q-${questionIndex + 1}`),
+        id: questionId,
         text: String(item.text || "").slice(0, 160),
         answers: answers.slice(0, 4).map((answer, answerIndex) => {
           const answerItem = answer as { id?: unknown; label?: unknown; intent?: unknown; modifiers?: unknown };
-          const id = safeId(answerItem.id, `ai-a-${questionIndex + 1}-${answerIndex + 1}`);
+          const id = uniqueId(safeId(answerItem.id, `ai-a-${questionIndex + 1}-${answerIndex + 1}`), usedAnswerIds);
           const label = String(answerItem.label || "").slice(0, 64);
           const intent = normalizeIntent(answerItem.intent, answerIndex);
           const modifiers = normalizeModifiers(answerItem.modifiers);
@@ -113,6 +116,21 @@ export function normalizeQuestions(value: unknown): Question[] {
       };
     })
     .filter((question) => question.text && question.answers.length === 4);
+}
+
+export function ensureUniqueQuestionAnswerIds(questions: Question[]) {
+  const usedQuestionIds = new Set<string>();
+  return questions.map((question, questionIndex) => {
+    const usedAnswerIds = new Set<string>();
+    return {
+      ...question,
+      id: uniqueId(safeId(question.id, `q-${questionIndex + 1}`), usedQuestionIds),
+      answers: question.answers.map((answer, answerIndex) => ({
+        ...answer,
+        id: uniqueId(safeId(answer.id, `a-${questionIndex + 1}-${answerIndex + 1}`), usedAnswerIds),
+      })),
+    };
+  });
 }
 
 export function normalizeModifiers(value: unknown): DecisionModifier {
@@ -137,19 +155,19 @@ function normalizeIntent(value: unknown, answerIndex: number) {
 function modifiersFromIntent(intent: (typeof answerIntents)[number], seedText: string): DecisionModifier {
   const destinySeed = seededNumber(seedText, 1, 99);
   const maps: Record<(typeof answerIntents)[number], DecisionModifier> = {
-    raise_bluff: { chicken: 1.2, foldEquity: 1.4, uncertainty: 0.4, raiseScoreBonus: 1.1 },
-    raise_value: { handStrength: 1.2, skill: 0.7, trapPotential: 0.6, raiseScoreBonus: 1 },
-    call_pressure: { money: 0.9, opponentAggression: 1, potOdds: 0.8, callScoreBonus: 1 },
-    call_curiosity: { money: 1.2, showdownValue: 0.7, uncertainty: 0.5, callScoreBonus: 0.8 },
-    check_control: { skill: 0.8, uncertainty: 1, showdownValue: 0.6, checkScoreBonus: 1 },
-    check_trap: { trapPotential: 1.3, handStrength: 0.7, checkScoreBonus: 1 },
-    fold_caution: { uncertainty: 1.4, opponentAggression: 0.8, foldScoreBonus: 1.4, chicken: -0.8 },
-    skill_theory: { skill: 1.4, positionAdvantage: 0.8, potOdds: 0.6, raiseScoreBonus: 0.5, callScoreBonus: 0.4 },
-    money_story: { money: 1.6, callScoreBonus: 1, uncertainty: 0.4 },
-    chicken_attack: { chicken: 1.7, foldEquity: 1.1, raiseScoreBonus: 1.2 },
-    destiny_high: { destinySeed, chicken: 1, raiseScoreBonus: 1 },
-    destiny_middle: { destinySeed, money: 0.8, callScoreBonus: 0.8 },
-    destiny_low: { destinySeed, uncertainty: 1, checkScoreBonus: 0.8, foldScoreBonus: 0.6 },
+    raise_bluff: { chicken: 2.2, foldEquity: 2.1, uncertainty: 0.4, raiseScoreBonus: 2.1, callScoreBonus: -0.6 },
+    raise_value: { handStrength: 1.7, skill: 1, trapPotential: 0.8, raiseScoreBonus: 2, callScoreBonus: -0.3 },
+    call_pressure: { money: 1.5, opponentAggression: 1.1, potOdds: 1.2, callScoreBonus: 2, raiseScoreBonus: -0.5 },
+    call_curiosity: { money: 1.8, showdownValue: 1.1, uncertainty: 0.5, callScoreBonus: 1.8, foldScoreBonus: -0.5 },
+    check_control: { skill: 1, uncertainty: 1.4, showdownValue: 0.8, checkScoreBonus: 1.9, chicken: -0.8 },
+    check_trap: { trapPotential: 1.7, handStrength: 1, checkScoreBonus: 1.9, chicken: -0.4 },
+    fold_caution: { uncertainty: 2, opponentAggression: 1.1, potOdds: -1, showdownValue: -0.9, foldScoreBonus: 2.4, chicken: -1.5, money: -1.2 },
+    skill_theory: { skill: 1.8, positionAdvantage: 1, potOdds: 0.8, raiseScoreBonus: 1.1, callScoreBonus: 0.8 },
+    money_story: { money: 2.2, callScoreBonus: 2, uncertainty: 0.4, foldScoreBonus: -0.7 },
+    chicken_attack: { chicken: 2.5, foldEquity: 1.8, raiseScoreBonus: 2.3, callScoreBonus: -0.5 },
+    destiny_high: { destinySeed, chicken: 1.4, raiseScoreBonus: 1.6 },
+    destiny_middle: { destinySeed, money: 1.2, callScoreBonus: 1.4 },
+    destiny_low: { destinySeed, uncertainty: 1.4, checkScoreBonus: 1.3, foldScoreBonus: 1.1 },
   };
   return maps[intent];
 }
@@ -199,4 +217,15 @@ function safeId(value: unknown, fallback: string) {
       .replace(/-+/g, "-")
       .slice(0, 48) || fallback
   );
+}
+
+function uniqueId(id: string, usedIds: Set<string>) {
+  let nextId = id;
+  let suffix = 2;
+  while (usedIds.has(nextId)) {
+    nextId = `${id}-${suffix}`;
+    suffix += 1;
+  }
+  usedIds.add(nextId);
+  return nextId;
 }
