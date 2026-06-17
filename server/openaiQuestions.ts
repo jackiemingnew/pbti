@@ -1,5 +1,5 @@
-import { normalizeQuestions, parseModelJson, questionSchema, type OpenAIQuestionResponse } from "../src/services/questionFormat";
-import type { Character, PokerScenario, Question } from "../src/types";
+import { normalizeQuestions, parseModelJson, questionSchema, type OpenAIQuestionResponse } from "../src/services/questionFormat.js";
+import type { Character, PokerScenario, Question } from "../src/types.js";
 
 export type QuestionBankInput = {
   apiKey: string;

@@ -1,4 +1,4 @@
-import type { DecisionModifier, Question } from "../types";
+import type { DecisionModifier, Question } from "../types.js";
 
 export type OpenAIQuestionResponse = {
   output_text?: string;

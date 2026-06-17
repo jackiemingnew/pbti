@@ -1,5 +1,5 @@
-import { generateQuestionBankFromOpenAI, getQuestionBankErrorStatus, toQuestionBankErrorPayload } from "../server/openaiQuestions";
-import type { Character, PokerScenario } from "../src/types";
+import { generateQuestionBankFromOpenAI, getQuestionBankErrorStatus, toQuestionBankErrorPayload } from "../server/openaiQuestions.js";
+import type { Character, PokerScenario } from "../src/types.js";
 
 export const config = {
   maxDuration: 30,
