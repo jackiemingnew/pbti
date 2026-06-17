@@ -30,13 +30,13 @@ export function takeCachedQuestionSet(character: Character, prompt: string, dest
   const recentKey = `${key}:recent`;
   const recent = readRecent(recentKey);
   const cache = readCache(key);
-  const index = cache.findIndex((set) => set.questionCount === questionCount && !recent.includes(set.signature));
-  if (index < 0) {
+  const candidates = cache.filter((set) => set.questionCount === questionCount);
+  const set = candidates.find((item) => !recent.includes(item.signature)) || candidates[0];
+  if (!set) {
     writeCache(key, cache);
     return null;
   }
 
-  const [set] = cache.splice(index, 1);
   writeCache(key, cache);
   rememberRecent(recentKey, set.signature);
   return set.questions;

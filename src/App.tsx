@@ -96,11 +96,9 @@ function App() {
   useEffect(() => {
     if (page !== "home") return;
     let canceled = false;
-    const queue = ([1, 2] as const).flatMap((count) =>
-      characters
-        .filter((item) => getCachedQuestionSetCount(item, questionPrompt, destinyPrompt, count) < 1)
-        .map((character) => ({ character, count })),
-    );
+    const queue = characters
+      .filter((item) => getCachedQuestionSetCount(item, questionPrompt, destinyPrompt, 1) < 1)
+      .map((character) => ({ character, count: 1 }));
 
     async function worker() {
       while (!canceled && queue.length) {
@@ -114,7 +112,6 @@ function App() {
       }
     }
 
-    void worker();
     void worker();
 
     return () => {
@@ -153,6 +150,7 @@ function App() {
       setQuestionError("");
     } catch (error) {
       const fallbackQuestions = pickFallbackQuestions(nextCharacter, count);
+      storeQuestionSet(nextCharacter, questionPrompt, destinyPrompt, fallbackQuestions);
       rememberQuestionSet(nextCharacter, questionPrompt, destinyPrompt, fallbackQuestions);
       setActiveQuestions(fallbackQuestions);
       setQuestionStatus("fallback");

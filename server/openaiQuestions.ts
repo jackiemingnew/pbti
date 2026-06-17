@@ -37,8 +37,8 @@ export class QuestionBankError extends Error {
 }
 
 let configuredProxyUrl = "";
-const DEFAULT_OPENAI_ATTEMPTS = process.env.VERCEL ? 2 : 3;
-const DEFAULT_OPENAI_TIMEOUT_MS = process.env.VERCEL ? 8000 : 12000;
+const DEFAULT_OPENAI_ATTEMPTS = process.env.VERCEL ? 1 : 3;
+const DEFAULT_OPENAI_TIMEOUT_MS = process.env.VERCEL ? 25000 : 12000;
 
 export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, character, scenario, questionCount = 2, destinyPrompt }: QuestionBankInput): Promise<Question[]> {
   await configureOptionalProxy();
