@@ -12,13 +12,6 @@ type ResultCardProps = {
   onHome: () => void;
 };
 
-const bars = [
-  ["Check", "checkScore", "bg-emerald-500"],
-  ["Call", "callScore", "bg-blue-500"],
-  ["Raise", "raiseScore", "bg-red-500"],
-  ["Fold", "foldScore", "bg-purple-500"],
-] as const;
-
 const modifierLabels: Record<string, string> = {
   handStrength: "牌力",
   drawPotential: "听牌",
@@ -128,7 +121,13 @@ function ResultSection({ title, children, tone = "neutral" }: { title: string; c
 }
 
 export function ResultCard({ character, questions, selectedAnswers, result, onAgain, onChangeCharacter, onHome }: ResultCardProps) {
-  const maxScore = Math.max(result.scoreBreakdown.checkScore, result.scoreBreakdown.callScore, result.scoreBreakdown.raiseScore, result.scoreBreakdown.foldScore, 1);
+  const passScore = Math.max(result.scoreBreakdown.checkScore, result.scoreBreakdown.foldScore);
+  const scoreBars = [
+    { label: "过牌/弃牌", score: passScore, color: "bg-emerald-500", isWinner: result.action === "Check" || result.action === "Fold" },
+    { label: actionLabels.Call, score: result.scoreBreakdown.callScore, color: "bg-blue-500", isWinner: result.action === "Call" },
+    { label: actionLabels.Raise, score: result.scoreBreakdown.raiseScore, color: "bg-red-500", isWinner: result.action === "Raise" },
+  ];
+  const maxScore = Math.max(...scoreBars.map((bar) => bar.score), 1);
   const destiny = result.destiny;
   const isDestiny = Boolean(destiny) || character.decisionMode === "destiny" || typeof result.destinyRoll === "number";
   const destinyRoll = destiny?.roll ?? result.destinyRoll;
@@ -261,19 +260,18 @@ export function ResultCard({ character, questions, selectedAnswers, result, onAg
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
             <h3 className="mb-3 text-sm font-bold tracking-[0.2em] text-amber-400">分数 breakdown</h3>
             <div className="space-y-3">
-              {bars.map(([action, key, color]) => {
-                const score = result.scoreBreakdown[key];
-                const isWinner = score >= maxScore;
+              {scoreBars.map((bar) => {
+                const isWinner = bar.isWinner || bar.score >= maxScore;
                 return (
-                  <div key={key}>
+                  <div key={bar.label}>
                     <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className={isWinner ? "font-bold text-amber-100" : "text-zinc-400"}>{actionLabels[action]}</span>
-                      <span className={isWinner ? "font-bold text-amber-200" : "text-zinc-500"}>{score.toFixed(1)}</span>
+                      <span className={isWinner ? "font-bold text-amber-100" : "text-zinc-400"}>{bar.label}</span>
+                      <span className={isWinner ? "font-bold text-amber-200" : "text-zinc-500"}>{bar.score.toFixed(1)}</span>
                     </div>
                     <div className="h-3 overflow-hidden rounded-full bg-zinc-800">
                       <div
-                        className={`h-full ${color} rounded-full transition-all duration-700 ${isWinner ? "shadow-[0_0_8px]" : "opacity-70"}`}
-                        style={{ width: `${(score / maxScore) * 100}%` }}
+                        className={`h-full ${bar.color} rounded-full transition-all duration-700 ${isWinner ? "shadow-[0_0_8px]" : "opacity-70"}`}
+                        style={{ width: `${(bar.score / maxScore) * 100}%` }}
                       />
                     </div>
                   </div>

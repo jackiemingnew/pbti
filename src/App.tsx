@@ -243,17 +243,21 @@ function App() {
     setSelectedAnswers((current) => {
       const next = [...current];
       next[questionIndex] = answer;
+      if (activeQuestions.length === 1) {
+        window.setTimeout(() => revealDecision(next), 0);
+      }
       return next;
     });
   }
 
-  function revealDecision() {
-    if (!character || !answeredAllQuestions || isRevealing) return;
+  function revealDecision(answers = selectedAnswers) {
+    const hasAnsweredAll = Boolean(activeQuestions.length && answers.filter(Boolean).length === activeQuestions.length);
+    if (!character || !hasAnsweredAll || isRevealing) return;
 
     setIsRevealing(true);
     clearRevealTimer();
     const delay = 1200 + Math.round(Math.random() * 600);
-    const nextResult = buildDecisionResult(character, selectedAnswers, destinyRoll, forceEasterEgg);
+    const nextResult = buildDecisionResult(character, answers, destinyRoll, forceEasterEgg);
     revealTimerRef.current = setTimeout(() => {
       setResult(nextResult);
       setIsRevealing(false);
@@ -458,7 +462,7 @@ function HomePage({
             <br />
             术：你有多会把冲动包装成理论。
             <br />
-            选择角色，回答几个问题，系统会生成你的牌桌行动：弃牌 / 过牌 / 跟注 / 加注。
+            选择角色，回答几个问题，系统会生成你的牌桌行动：过牌/弃牌 / 跟注 / 加注。
           </p>
           <button
             onClick={onRandomCharacter}
@@ -590,7 +594,7 @@ function HowToPlaySection() {
     {
       step: 3,
       title: "获得行动建议",
-      description: "系统综合角色属性、你的回答和 PBTI 决策引擎，给出弃牌 / 过牌 / 跟注 / 加注建议，附分数拆解和风险提示。",
+      description: "系统综合角色属性、你的回答和 PBTI 决策引擎，给出过牌/弃牌 / 跟注 / 加注建议，附分数拆解和风险提示。",
     },
   ];
 
@@ -1266,14 +1270,17 @@ function ResultFlow({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/35 bg-zinc-950/80 p-4">
             <p className="text-sm text-zinc-400">
               已回答 {selectedAnswers.filter(Boolean).length}/{questions.length}
+              {questions.length === 1 && !isLoading && !isRevealing ? " · 选择后自动进入审判" : ""}
             </p>
-            <button
-              onClick={onReveal}
-              disabled={!answeredAllQuestions || isLoading || isRevealing}
-              className="rounded-xl bg-amber-400 px-5 py-3 font-black text-zinc-950 transition enabled:hover:scale-105 enabled:hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
-            >
-              {isRevealing ? "人格审判中..." : "揭晓牌桌行动"}
-            </button>
+            {questions.length > 1 && (
+              <button
+                onClick={onReveal}
+                disabled={!answeredAllQuestions || isLoading || isRevealing}
+                className="rounded-xl bg-amber-400 px-5 py-3 font-black text-zinc-950 transition enabled:hover:scale-105 enabled:hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+              >
+                {isRevealing ? "人格审判中..." : "揭晓牌桌行动"}
+              </button>
+            )}
           </div>
         </div>
       ) : (
