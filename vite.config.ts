@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { generateQuestionBankFromOpenAI } from "./server/openaiQuestions";
+import { generateQuestionBankFromOpenAI, toQuestionBankErrorPayload } from "./server/openaiQuestions";
 import type { Character, PokerScenario } from "./src/types";
 
 export default defineConfig(({ mode }) => {
@@ -60,7 +60,7 @@ function localQuestionApi(env: Record<string, string>): Plugin {
           response.end(JSON.stringify({ questions }));
         } catch (error) {
           response.statusCode = 500;
-          response.end(JSON.stringify({ error: error instanceof Error ? error.message : "本地题库生成失败。" }));
+          response.end(JSON.stringify(toQuestionBankErrorPayload(error)));
         }
       });
     },

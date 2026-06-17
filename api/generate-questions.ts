@@ -1,4 +1,4 @@
-import { generateQuestionBankFromOpenAI } from "../server/openaiQuestions";
+import { generateQuestionBankFromOpenAI, toQuestionBankErrorPayload } from "../server/openaiQuestions";
 import type { Character, PokerScenario } from "../src/types";
 
 type ApiRequest = {
@@ -60,7 +60,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     });
     response.status(200).json({ questions });
   } catch (error) {
-    response.status(500).json({ error: error instanceof Error ? error.message : "服务端题库生成失败。" });
+    response.status(500).json(toQuestionBankErrorPayload(error));
   }
 }
 

@@ -3,7 +3,12 @@ import type { DecisionModifier, Question } from "../types";
 export type OpenAIQuestionResponse = {
   output_text?: string;
   output?: Array<{ content?: Array<{ text?: string }> }>;
-  error?: { message?: string };
+  error?: {
+    message?: string;
+    code?: string;
+    type?: string;
+    param?: string;
+  };
 };
 
 export const modifierKeys = [
