@@ -49,6 +49,7 @@ function chooseSizing(action: DecisionResult["action"], scenario: PokerScenario,
 }
 
 function commonDeathText(action: DecisionResult["action"], character: Character) {
+  if (character.deathPatterns?.length) return character.deathPatterns[0];
   if (character.id === "bluff-assassin") return "三街小说写太长，对手却是自动跟注机。";
   if (character.id === "boss-whale") return "把每一手都当节目投资，最后发现自己赞助了全桌。";
   if (action === "Raise") return "把普通冲动包装成读牌灵感，结果被人用强牌收租。";
@@ -90,8 +91,8 @@ function destinySizing(action: DecisionResult["action"], scenario: PokerScenario
 }
 
 function destinyStatus(roll: number) {
-  if (roll >= 98) return "大圣暴走";
-  if (roll >= 90) return "天雷催注";
+  if (roll >= 98) return "三界之外";
+  if (roll >= 90) return "天命爆发";
   if (roll >= 67) return "筋斗云起飞";
   if (roll >= 34) return "猴毛试探";
   if (roll >= 17) return "原地画圈";
@@ -130,6 +131,9 @@ function generateDestinyDecision(character: Character, scenario: PokerScenario, 
 
   const key = action.toLowerCase() as "check" | "call" | "raise";
   const answerLabels = selectedAnswers.map((answer) => `「${answer.label}」`).join("、");
+  const status = destinyStatus(roll);
+  const effect = destinyEffect(action, roll);
+  const specialEventName = destinySpecialEvent(roll);
 
   return {
     action,
@@ -139,11 +143,17 @@ function generateDestinyDecision(character: Character, scenario: PokerScenario, 
     reasoning: `天命人不看鸡、钱、术。他本手先掷出命运底数 ${baseRoll}，再把你的回答 ${answerLabels} 折算成荒诞扰动，得到天命波动 ${roll}。数字越高越容易把筹码往前推。`,
     riskWarning: `这不是牌理建议，而是随机娱乐机制。${roll >= 90 ? "本次命运很躁，下注尺度会明显偏大。" : "本次数字只代表小游戏里的命运噪声。"} `,
     personalityBias: character.bias,
-    commonDeath: "把随机数当宇宙圣旨，赢了叫天命，输了叫劫数。",
+    commonDeath: commonDeathText(action, character),
+    destiny: {
+      roll,
+      status,
+      effect,
+      specialEventName,
+    },
     destinyRoll: roll,
-    destinyStatus: destinyStatus(roll),
-    destinyEffect: destinyEffect(action, roll),
-    specialEventName: destinySpecialEvent(roll),
+    destinyStatus: status,
+    destinyEffect: effect,
+    specialEventName,
   };
 }
 

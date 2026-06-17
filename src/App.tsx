@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CharacterAvatar } from "./components/CharacterCard";
+import { PlayingCard } from "./components/PlayingCard";
 import { ResultCard } from "./components/ResultCard";
 import { DEFAULT_DESTINY_QUESTION_PROMPT, DEFAULT_QUESTION_PROMPT } from "./config/questionPrompt";
 import { characters } from "./data/characters";
 import { generateDecision } from "./logic/decisionEngine";
+import { analyzeShowdown, cardsToText, inferGameType, parseCards } from "./logic/pokerHandEvaluator";
 import {
   buildQuestionRequestKey,
   getCachedQuestionSetCount,
@@ -12,9 +14,21 @@ import {
   takeCachedQuestionSet,
 } from "./services/questionCache";
 import { generateQuestions } from "./services/questionApi";
-import type { Answer, Character, DecisionResult, PokerScenario, Question } from "./types";
+import { recognizePokerPhoto } from "./services/photoRecognitionApi";
+import type {
+  Answer,
+  Character,
+  DecisionResult,
+  PokerGameMode,
+  PokerGameType,
+  PokerPhotoRecognition,
+  PokerScenario,
+  Question,
+  RecognizedBoard,
+  RecognizedPlayer,
+} from "./types";
 
-type Page = "home" | "result" | "promptAdmin";
+type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
@@ -46,6 +60,34 @@ const OFFLINE_DECISION_CONTEXT: PokerScenario = {
   },
 };
 
+function buildDecisionResult(character: Character, selectedAnswers: Answer[], destinyRoll: number | null, forceEasterEgg: boolean): DecisionResult {
+  if (forceEasterEgg || Math.random() < 0.05) {
+    const destiny = {
+      status: "宇宙改判",
+      effect: "本轮所有分数被彩蛋覆盖，强制弃牌。",
+      specialEventName: "隐藏彩蛋：宇宙弃牌令",
+    };
+
+    return {
+      action: "Fold",
+      sizing: "弃牌",
+      scoreBreakdown: { checkScore: 0, callScore: 0, raiseScore: 0, foldScore: 12 },
+      voiceLine: `宇宙给你递了一张牌：弃牌。${forceEasterEgg ? "彩蛋模式已确认。" : "这不是懦弱，是命运。"}`,
+      reasoning: `你触发了隐藏彩蛋（5% 概率${forceEasterEgg ? "，本次为强制触发" : ""}）！无论你的答案是什么，${character.name} 选择了弃牌。`,
+      riskWarning: "彩蛋仅用于娱乐，与真实牌技无关。",
+      personalityBias: "彩蛋模式：今天宇宙不让你入池。",
+      commonDeath: "把 5% 彩蛋当成长期策略，下次还真以为宇宙在发短信。",
+      destiny,
+      destinyStatus: destiny.status,
+      destinyEffect: destiny.effect,
+      specialEventName: destiny.specialEventName,
+      easterEgg: true,
+    };
+  }
+
+  return generateDecision(character, OFFLINE_DECISION_CONTEXT, selectedAnswers, destinyRoll ?? undefined);
+}
+
 function App() {
   const [page, setPage] = useState<Page>("home");
   const [character, setCharacter] = useState<Character | null>(null);
@@ -55,6 +97,7 @@ function App() {
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [questionStatus, setQuestionStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [questionError, setQuestionError] = useState("");
+  const [isRevealing, setIsRevealing] = useState(false);
   const [forceEasterEgg, setForceEasterEgg] = useState(false);
   const [questionPrompt, setQuestionPrompt] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_QUESTION_PROMPT;
@@ -67,6 +110,7 @@ function App() {
   });
   const [destinyPromptDraft, setDestinyPromptDraft] = useState(destinyPrompt);
   const inflightQuestionsRef = useRef(new Map<string, Promise<Question[]>>());
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const answeredAllQuestions = useMemo(() => {
     return Boolean(activeQuestions.length && selectedAnswers.filter(Boolean).length === activeQuestions.length);
@@ -119,12 +163,26 @@ function App() {
     };
   }, [page, questionPrompt, destinyPrompt]);
 
+  useEffect(() => {
+    return () => {
+      clearRevealTimer();
+    };
+  }, []);
+
+  function clearRevealTimer() {
+    if (!revealTimerRef.current) return;
+    clearTimeout(revealTimerRef.current);
+    revealTimerRef.current = null;
+  }
+
   function chooseCharacter(nextCharacter: Character) {
+    clearRevealTimer();
     const count = pickQuestionCountForCharacter(nextCharacter);
     setCharacter(nextCharacter);
     setDestinyRoll(nextCharacter.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
+    setIsRevealing(false);
     setActiveQuestions([]);
     setQuestionError("");
     loadQuestionBank(nextCharacter, count);
@@ -190,30 +248,21 @@ function App() {
   }
 
   function revealDecision() {
-    if (!character || !answeredAllQuestions) return;
+    if (!character || !answeredAllQuestions || isRevealing) return;
 
-    if (forceEasterEgg || Math.random() < 0.05) {
-      setResult({
-        action: "Fold",
-        sizing: "弃牌",
-        scoreBreakdown: { checkScore: 0, callScore: 0, raiseScore: 0, foldScore: 12 },
-        voiceLine: `宇宙给你递了一张牌：弃牌。${forceEasterEgg ? "彩蛋模式已确认。" : "这不是懦弱，是命运。"}`,
-        reasoning: `你触发了隐藏彩蛋（5% 概率${forceEasterEgg ? "，本次为强制触发" : ""}）！无论你的答案是什么，${character.name} 选择了弃牌。`,
-        riskWarning: "彩蛋仅用于娱乐，与真实牌技无关。",
-        personalityBias: "彩蛋模式：今天宇宙不让你入池。",
-        commonDeath: "把 5% 彩蛋当成长期策略，下次还真以为宇宙在发短信。",
-        destinyStatus: "宇宙改判",
-        destinyEffect: "本轮所有分数被彩蛋覆盖，强制弃牌。",
-        specialEventName: "隐藏彩蛋：宇宙弃牌令",
-        easterEgg: true,
-      });
-      return;
-    }
-
-    setResult(generateDecision(character, OFFLINE_DECISION_CONTEXT, selectedAnswers, destinyRoll ?? undefined));
+    setIsRevealing(true);
+    clearRevealTimer();
+    const delay = 1200 + Math.round(Math.random() * 600);
+    const nextResult = buildDecisionResult(character, selectedAnswers, destinyRoll, forceEasterEgg);
+    revealTimerRef.current = setTimeout(() => {
+      setResult(nextResult);
+      setIsRevealing(false);
+      revealTimerRef.current = null;
+    }, delay);
   }
 
   function playAnotherHand() {
+    clearRevealTimer();
     if (!character) {
       setPage("home");
       return;
@@ -222,6 +271,7 @@ function App() {
     setDestinyRoll(character.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
+    setIsRevealing(false);
     setActiveQuestions([]);
     setQuestionError("");
     loadQuestionBank(character, count);
@@ -232,9 +282,17 @@ function App() {
   }
 
   function openPromptAdmin() {
+    clearRevealTimer();
+    setIsRevealing(false);
     setPromptDraft(questionPrompt);
     setDestinyPromptDraft(destinyPrompt);
     setPage("promptAdmin");
+  }
+
+  function openPhotoAnalyzer() {
+    clearRevealTimer();
+    setIsRevealing(false);
+    setPage("photoAnalyzer");
   }
 
   function savePromptConfig() {
@@ -262,10 +320,12 @@ function App() {
   }
 
   function goHome() {
+    clearRevealTimer();
     setPage("home");
     setCharacter(null);
     setSelectedAnswers([]);
     setResult(null);
+    setIsRevealing(false);
     setDestinyRoll(null);
     setActiveQuestions([]);
     setQuestionStatus("idle");
@@ -287,6 +347,16 @@ function App() {
               </span>
             </button>
             <div className="flex items-center gap-2">
+              <button
+                onClick={openPhotoAnalyzer}
+                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                  page === "photoAnalyzer"
+                    ? "border-cyan-300 bg-cyan-300 text-zinc-950"
+                    : "border-cyan-400/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-300 hover:text-zinc-950"
+                }`}
+              >
+                拍照识别
+              </button>
               {SHOW_PROMPT_ADMIN && (
                 <button
                   onClick={openPromptAdmin}
@@ -324,6 +394,7 @@ function App() {
                 questionError={questionError}
                 selectedAnswers={selectedAnswers}
                 result={result}
+                isRevealing={isRevealing}
                 destinyRoll={destinyRoll}
                 answeredAllQuestions={answeredAllQuestions}
                 onAnswer={answerQuestion}
@@ -346,6 +417,7 @@ function App() {
                 onBack={goHome}
               />
             )}
+            {page === "photoAnalyzer" && <PhotoAnalyzerPage onHome={goHome} />}
           </div>
 
           <footer className="border-t border-amber-500/20 pt-4 text-center text-xs text-zinc-500">
@@ -546,6 +618,411 @@ function HowToPlaySection() {
   );
 }
 
+// ====================== Photo Analyzer ======================
+
+function PhotoAnalyzerPage({ onHome }: { onHome: () => void }) {
+  const [mode, setMode] = useState<PokerGameMode>("auto");
+  const [imagePreview, setImagePreview] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [players, setPlayers] = useState<RecognizedPlayer[]>(defaultPlayers);
+  const [boards, setBoards] = useState<RecognizedBoard[]>(defaultBoards);
+  const [recognition, setRecognition] = useState<PokerPhotoRecognition | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [error, setError] = useState("");
+
+  const gameType: PokerGameType = useMemo(() => {
+    if (mode === "auto" && recognition?.gameType && recognition.gameType !== "unknown") return recognition.gameType;
+    return inferGameType(mode, players);
+  }, [mode, players, recognition]);
+
+  const showdownResults = useMemo(() => analyzeShowdown(gameType, players, boards), [gameType, players, boards]);
+
+  function handleImageChange(file: File | undefined) {
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setStatus("idle");
+    setError("");
+  }
+
+  async function runRecognition() {
+    if (!imageFile) {
+      setError("请先上传一张牌局照片。");
+      setStatus("error");
+      return;
+    }
+
+    setStatus("loading");
+    setError("");
+    try {
+      const nextRecognition = await recognizePokerPhoto(imageFile, mode);
+      const normalizedPlayers = nextRecognition.players.length ? nextRecognition.players : defaultPlayers;
+      const normalizedBoards = nextRecognition.boards.length ? nextRecognition.boards : defaultBoards;
+      setRecognition(nextRecognition);
+      setPlayers(normalizedPlayers.map((player, index) => ({ ...player, id: player.id || `player-${index + 1}` })));
+      setBoards(normalizedBoards.map((board, index) => ({ ...board, id: board.id || `board-${index + 1}` })));
+      setStatus("ready");
+    } catch (recognitionError) {
+      setError(recognitionError instanceof Error ? recognitionError.message : "照片识别失败。");
+      setStatus("error");
+    }
+  }
+
+  function loadExample() {
+    setMode("holdem");
+    setRecognition({
+      gameType: "holdem",
+      confidence: 1,
+      players: samplePlayers,
+      boards: sampleBoards,
+      pot: "示例牌面",
+      notes: ["这是本地示例，方便验证胜负计算。"],
+      warnings: [],
+    });
+    setPlayers(samplePlayers);
+    setBoards(sampleBoards);
+    setStatus("ready");
+    setError("");
+  }
+
+  function updatePlayer(index: number, patch: Partial<RecognizedPlayer>) {
+    setPlayers((current) => current.map((player, itemIndex) => (itemIndex === index ? { ...player, ...patch } : player)));
+  }
+
+  function updateBoard(index: number, patch: Partial<RecognizedBoard>) {
+    setBoards((current) => current.map((board, itemIndex) => (itemIndex === index ? { ...board, ...patch } : board)));
+  }
+
+  function addPlayer() {
+    setPlayers((current) => [...current, { id: `player-${Date.now()}`, seat: `玩家 ${current.length + 1}`, holeCards: [] }]);
+  }
+
+  function removePlayer(index: number) {
+    setPlayers((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function addBoard() {
+    setBoards((current) => [...current, { id: `board-${Date.now()}`, label: `第 ${current.length + 1} 路`, cards: [] }]);
+  }
+
+  function removeBoard(index: number) {
+    setBoards((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  return (
+    <section className="w-full space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-cyan-500/30 bg-zinc-950/90 p-5 shadow-2xl sm:p-6">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.3em] text-cyan-400">Photo Hand Reader</p>
+          <h1 className="mt-2 text-3xl font-black text-amber-100 sm:text-5xl">拍照识别牌型</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
+            上传牌局照片，先由视觉模型读取可见手牌和公共牌，再在本地按德州或奥马哈规则计算每一路胜利牌型。识别结果可以手动校准。
+          </p>
+        </div>
+        <button
+          onClick={onHome}
+          className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-amber-500 hover:text-amber-100"
+        >
+          回首页
+        </button>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
+        <aside className="space-y-5">
+          <div className="rounded-2xl border border-cyan-500/30 bg-zinc-950/90 p-4 shadow-2xl">
+            <h2 className="text-xl font-black text-amber-100">照片输入</h2>
+            <label className="mt-4 flex min-h-64 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-cyan-500/40 bg-zinc-900/80 text-center transition hover:border-cyan-300">
+              {imagePreview ? (
+                <img src={imagePreview} alt="牌局照片预览" className="h-full max-h-80 w-full object-cover" />
+              ) : (
+                <span className="px-6 text-sm leading-6 text-zinc-400">点击上传牌局照片，建议让所有牌面完整入镜且尽量减少反光。</span>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(event) => handleImageChange(event.target.files?.[0])}
+              />
+            </label>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {(["auto", "holdem", "omaha"] as PokerGameMode[]).map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setMode(item)}
+                  className={`rounded-xl border px-3 py-2 text-sm font-black transition ${
+                    mode === item
+                      ? "border-cyan-300 bg-cyan-300 text-zinc-950"
+                      : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-cyan-400 hover:text-cyan-100"
+                  }`}
+                >
+                  {modeLabel(item)}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={runRecognition}
+                disabled={status === "loading"}
+                className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-black text-zinc-950 transition enabled:hover:scale-105 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+              >
+                {status === "loading" ? "识别中..." : "识别照片"}
+              </button>
+              <button
+                onClick={loadExample}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-amber-500 hover:text-amber-100"
+              >
+                套用示例
+              </button>
+            </div>
+
+            {error && <p className="mt-4 rounded-xl border border-red-500/40 bg-red-950/40 p-3 text-sm leading-6 text-red-100">{error}</p>}
+            {recognition && (
+              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/80 p-3 text-sm leading-6 text-zinc-300">
+                <p>
+                  识别模式：<span className="font-bold text-cyan-200">{gameTypeLabel(recognition.gameType)}</span>
+                </p>
+                <p>
+                  置信度：<span className="font-bold text-amber-200">{Math.round(recognition.confidence * 100)}%</span>
+                </p>
+                {recognition.pot && <p>底池/筹码：{recognition.pot}</p>}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-amber-500/25 bg-zinc-950/90 p-4">
+            <h2 className="font-black text-amber-100">识别说明</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              视觉模型只负责读牌，本页会重新计算胜负。德州会从手牌和公共牌里选最佳 5 张；奥马哈会强制使用 2 张手牌 + 3 张公共牌。
+            </p>
+          </div>
+        </aside>
+
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-amber-500/30 bg-zinc-950/90 p-4 shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.24em] text-amber-500">Calibration</p>
+                <h2 className="mt-1 text-2xl font-black text-amber-100">牌面校准</h2>
+              </div>
+              <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-sm font-bold text-cyan-100">
+                当前按 {gameTypeLabel(gameType)} 计算
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-black text-zinc-100">玩家手牌</h3>
+                  <button
+                    onClick={addPlayer}
+                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:border-amber-500 hover:text-amber-100"
+                  >
+                    添加玩家
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-3">
+                  {players.map((player, index) => (
+                    <div key={player.id || index} className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
+                      <div className="grid gap-3 sm:grid-cols-[140px_1fr_auto]">
+                        <input
+                          value={player.seat}
+                          onChange={(event) => updatePlayer(index, { seat: event.target.value })}
+                          placeholder="座位/玩家"
+                          className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-400"
+                        />
+                        <input
+                          value={cardsToText(player.holeCards)}
+                          onChange={(event) => updatePlayer(index, { holeCards: parseCards(event.target.value) })}
+                          placeholder={gameType === "omaha" ? "A♠ K♠ Q♥ J♥" : "A♠ J♠"}
+                          className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-400"
+                        />
+                        <button
+                          onClick={() => removePlayer(index)}
+                          className="rounded-xl border border-red-500/40 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/10"
+                        >
+                          删除
+                        </button>
+                      </div>
+                      <CardStrip cards={player.holeCards} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-black text-zinc-100">公共牌 / 两路发牌</h3>
+                  <button
+                    onClick={addBoard}
+                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:border-amber-500 hover:text-amber-100"
+                  >
+                    添加一路
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-3">
+                  {boards.map((board, index) => (
+                    <div key={board.id || index} className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
+                      <div className="grid gap-3 sm:grid-cols-[140px_1fr_auto]">
+                        <input
+                          value={board.label}
+                          onChange={(event) => updateBoard(index, { label: event.target.value })}
+                          placeholder="第一路"
+                          className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-400"
+                        />
+                        <input
+                          value={cardsToText(board.cards)}
+                          onChange={(event) => updateBoard(index, { cards: parseCards(event.target.value) })}
+                          placeholder="J♦ 8♣ 3♠ 2♥ A♣"
+                          className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-400"
+                        />
+                        <button
+                          onClick={() => removeBoard(index)}
+                          className="rounded-xl border border-red-500/40 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/10"
+                        >
+                          删除
+                        </button>
+                      </div>
+                      <CardStrip cards={board.cards} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ShowdownPanel results={showdownResults} />
+
+          {(recognition?.notes?.length || recognition?.warnings?.length) && (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/90 p-4">
+              <h2 className="font-black text-amber-100">模型备注</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <InfoList title="Notes" items={recognition.notes || []} tone="text-zinc-300" />
+                <InfoList title="Warnings" items={recognition.warnings || []} tone="text-red-100" />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CardStrip({ cards }: { cards: string[] }) {
+  const parsedCards = parseCards(cards);
+  if (!parsedCards.length) return <p className="mt-3 text-xs text-zinc-500">暂无有效牌面</p>;
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {parsedCards.map((card) => (
+        <PlayingCard key={card} card={card} />
+      ))}
+    </div>
+  );
+}
+
+function ShowdownPanel({ results }: { results: ReturnType<typeof analyzeShowdown> }) {
+  return (
+    <section className="rounded-2xl border border-cyan-500/30 bg-zinc-950/90 p-4 shadow-2xl">
+      <p className="text-sm font-black uppercase tracking-[0.24em] text-cyan-400">Showdown</p>
+      <h2 className="mt-1 text-2xl font-black text-amber-100">胜利牌型</h2>
+      <div className="mt-4 grid gap-4">
+        {results.map((result) => (
+          <div key={result.board.id || result.boardIndex} className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black text-amber-100">{result.board.label || `第 ${result.boardIndex + 1} 路`}</h3>
+                <CardStrip cards={result.board.cards} />
+              </div>
+              <div className="rounded-xl border border-amber-500/40 bg-amber-400/10 px-4 py-2 text-right">
+                <p className="text-xs font-bold text-amber-400">赢家</p>
+                <p className="text-lg font-black text-amber-100">
+                  {result.winners.length ? result.winners.map((winner) => winner.player.seat || "未命名玩家").join(" / ") : "待补全牌面"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {result.players.map((playerResult) => {
+                const isWinner = result.winners.some((winner) => winner.player === playerResult.player);
+                return (
+                  <div
+                    key={playerResult.player.id || playerResult.player.seat}
+                    className={`rounded-xl border p-3 ${
+                      isWinner ? "border-amber-400 bg-amber-400/10" : "border-zinc-800 bg-zinc-950/70"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-black text-zinc-100">{playerResult.player.seat || "未命名玩家"}</p>
+                        <p className={`mt-1 text-sm ${playerResult.valid ? "text-cyan-100" : "text-red-100"}`}>
+                          {playerResult.valid ? playerResult.handName : playerResult.error}
+                        </p>
+                      </div>
+                      {playerResult.bestCards && <CardStrip cards={playerResult.bestCards} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InfoList({ title, items, tone }: { title: string; items: string[]; tone: string }) {
+  if (!items.length) return null;
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-3">
+      <p className="text-sm font-black text-amber-100">{title}</p>
+      <ul className={`mt-2 space-y-1 text-sm leading-6 ${tone}`}>
+        {items.map((item, index) => (
+          <li key={`${item}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function modeLabel(mode: PokerGameMode) {
+  if (mode === "holdem") return "德州";
+  if (mode === "omaha") return "奥马哈";
+  return "自动";
+}
+
+function gameTypeLabel(gameType: PokerGameType | "unknown") {
+  if (gameType === "holdem") return "德州扑克";
+  if (gameType === "omaha") return "奥马哈";
+  return "未确定";
+}
+
+function revealLoadingText(character: Character) {
+  if (character.id === "king-chow") return "正在整理西装……";
+  if (character.id === "bluff-assassin") return "正在编写三条街剧本……";
+  if (character.id === "boss-whale") return "正在评估剧情价值……";
+  if (character.id === "destiny-fool") return "正在掷天命骰子……";
+  return "正在进行人格审判……";
+}
+
+const defaultPlayers: RecognizedPlayer[] = [
+  { id: "player-1", seat: "Hero", holeCards: [] },
+  { id: "player-2", seat: "Villain", holeCards: [] },
+];
+
+const defaultBoards: RecognizedBoard[] = [{ id: "board-1", label: "第一路", cards: [] }];
+
+const samplePlayers: RecognizedPlayer[] = [
+  { id: "sample-hero", seat: "Hero", holeCards: ["J♣", "J♠"], isHero: true },
+  { id: "sample-villain", seat: "Villain", holeCards: ["A♣", "A♦"] },
+];
+
+const sampleBoards: RecognizedBoard[] = [
+  { id: "sample-board-1", label: "第一路", cards: ["T♣", "T♥", "J♦", "2♠", "A♣"] },
+  { id: "sample-board-2", label: "第二路", cards: ["A♠", "K♦", "9♥", "4♣", "2♦"] },
+];
+
 function PromptAdminPage({
   prompt,
   destinyPrompt,
@@ -672,6 +1149,7 @@ function ResultFlow({
   questionError,
   selectedAnswers,
   result,
+  isRevealing,
   destinyRoll,
   answeredAllQuestions,
   onAnswer,
@@ -686,6 +1164,7 @@ function ResultFlow({
   questionError: string;
   selectedAnswers: Answer[];
   result: DecisionResult | null;
+  isRevealing: boolean;
   destinyRoll: number | null;
   answeredAllQuestions: boolean;
   onAnswer: (questionIndex: number, answer: Answer) => void;
@@ -745,6 +1224,16 @@ function ResultFlow({
               </div>
             )}
 
+            {isRevealing && (
+              <div className="rounded-2xl border border-amber-400/50 bg-amber-400/10 p-5 text-center shadow-gold">
+                <p className="text-xs font-black uppercase tracking-[0.28em] text-amber-400">Personality Judgement</p>
+                <p className="mt-3 text-xl font-black text-amber-100">{revealLoadingText(character)}</p>
+                <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-zinc-800">
+                  <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-amber-500 via-yellow-200 to-amber-500" />
+                </div>
+              </div>
+            )}
+
             {questions.map((q, qi) => {
               const selectedId = selectedAnswers[qi]?.id;
               return (
@@ -757,6 +1246,7 @@ function ResultFlow({
                         <button
                           key={a.id}
                           onClick={() => onAnswer(qi, a)}
+                          disabled={isRevealing}
                           className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold transition hover:scale-[1.01] ${
                             sel
                               ? "border-amber-300 bg-amber-400 text-zinc-950"
@@ -779,10 +1269,10 @@ function ResultFlow({
             </p>
             <button
               onClick={onReveal}
-              disabled={!answeredAllQuestions || isLoading}
+              disabled={!answeredAllQuestions || isLoading || isRevealing}
               className="rounded-xl bg-amber-400 px-5 py-3 font-black text-zinc-950 transition enabled:hover:scale-105 enabled:hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
             >
-              揭晓牌桌行动
+              {isRevealing ? "人格审判中..." : "揭晓牌桌行动"}
             </button>
           </div>
         </div>

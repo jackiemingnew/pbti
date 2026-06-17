@@ -51,6 +51,7 @@ export type Character = {
     raise: string;
   };
   bias: string;
+  deathPatterns: string[];
   avatarStyle: string;
   avatarImage?: string;
 };
@@ -81,9 +82,42 @@ export type DecisionResult = {
   riskWarning: string;
   personalityBias: string;
   commonDeath: string;
+  destiny?: {
+    roll?: number;
+    status?: string;
+    effect?: string;
+    specialEventName?: string;
+  };
   destinyRoll?: number;
   destinyStatus?: string;
   destinyEffect?: string;
   specialEventName?: string;
   easterEgg?: boolean;
+};
+
+export type PokerGameType = "holdem" | "omaha";
+export type PokerGameMode = PokerGameType | "auto";
+
+export type RecognizedPlayer = {
+  id?: string;
+  seat: string;
+  holeCards: string[];
+  stack?: string;
+  isHero?: boolean;
+};
+
+export type RecognizedBoard = {
+  id?: string;
+  label: string;
+  cards: string[];
+};
+
+export type PokerPhotoRecognition = {
+  gameType: PokerGameType | "unknown";
+  confidence: number;
+  players: RecognizedPlayer[];
+  boards: RecognizedBoard[];
+  pot?: string;
+  notes?: string[];
+  warnings?: string[];
 };

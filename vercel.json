@@ -2,6 +2,9 @@
   "functions": {
     "api/generate-questions.ts": {
       "maxDuration": 30
+    },
+    "api/recognize-photo.ts": {
+      "maxDuration": 30
     }
   }
 }
