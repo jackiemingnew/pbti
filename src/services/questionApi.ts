@@ -11,6 +11,7 @@ type QuestionApiResponse = {
     type?: string;
     param?: string;
     requestId?: string;
+    attempts?: number;
   };
 };
 
@@ -62,6 +63,7 @@ function formatQuestionApiError(status: number, payload: QuestionApiResponse, ra
     details?.type ? `type=${details.type}` : "",
     details?.param ? `param=${details.param}` : "",
     details?.requestId ? `request_id=${details.requestId}` : "",
+    details?.attempts ? `attempts=${details.attempts}` : "",
   ].filter(Boolean);
 
   return `服务端题库 API 请求失败：HTTP ${status}：${message}${metadata.length ? `（${metadata.join("，")}）` : ""}`;

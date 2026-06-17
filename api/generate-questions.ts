@@ -1,4 +1,4 @@
-import { generateQuestionBankFromOpenAI, toQuestionBankErrorPayload } from "../server/openaiQuestions";
+import { generateQuestionBankFromOpenAI, getQuestionBankErrorStatus, toQuestionBankErrorPayload } from "../server/openaiQuestions";
 import type { Character, PokerScenario } from "../src/types";
 
 type ApiRequest = {
@@ -60,7 +60,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     });
     response.status(200).json({ questions });
   } catch (error) {
-    response.status(500).json(toQuestionBankErrorPayload(error));
+    response.status(getQuestionBankErrorStatus(error)).json(toQuestionBankErrorPayload(error));
   }
 }
 

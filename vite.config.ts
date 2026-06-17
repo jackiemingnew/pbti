@@ -1,15 +1,22 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { generateQuestionBankFromOpenAI, toQuestionBankErrorPayload } from "./server/openaiQuestions";
+import { generateQuestionBankFromOpenAI, getQuestionBankErrorStatus, toQuestionBankErrorPayload } from "./server/openaiQuestions";
 import type { Character, PokerScenario } from "./src/types";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+  syncRuntimeEnv(env);
 
  return {
    plugins: [react(), localQuestionApi(env)],
  };
 });
+
+function syncRuntimeEnv(env: Record<string, string>) {
+  for (const key of ["HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"] as const) {
+    if (env[key] && !process.env[key]) process.env[key] = env[key];
+  }
+}
 
 function localQuestionApi(env: Record<string, string>): Plugin {
   return {
@@ -59,7 +66,7 @@ function localQuestionApi(env: Record<string, string>): Plugin {
 
           response.end(JSON.stringify({ questions }));
         } catch (error) {
-          response.statusCode = 500;
+          response.statusCode = getQuestionBankErrorStatus(error);
           response.end(JSON.stringify(toQuestionBankErrorPayload(error)));
         }
       });
