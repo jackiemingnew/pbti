@@ -1,6 +1,10 @@
 import { generateQuestionBankFromOpenAI, getQuestionBankErrorStatus, toQuestionBankErrorPayload } from "../server/openaiQuestions";
 import type { Character, PokerScenario } from "../src/types";
 
+export const config = {
+  maxDuration: 30,
+};
+
 type ApiRequest = {
   method?: string;
   body?: unknown;

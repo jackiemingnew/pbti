@@ -37,7 +37,8 @@ export class QuestionBankError extends Error {
 }
 
 let configuredProxyUrl = "";
-const MAX_OPENAI_ATTEMPTS = 3;
+const DEFAULT_OPENAI_ATTEMPTS = process.env.VERCEL ? 2 : 3;
+const DEFAULT_OPENAI_TIMEOUT_MS = process.env.VERCEL ? 8000 : 12000;
 
 export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, character, scenario, questionCount = 2, destinyPrompt }: QuestionBankInput): Promise<Question[]> {
   await configureOptionalProxy();
@@ -82,25 +83,27 @@ async function requestOpenAIWithRetry(
 ) {
   let lastError: QuestionBankError | null = null;
 
-  for (let attempt = 1; attempt <= MAX_OPENAI_ATTEMPTS; attempt += 1) {
+  const maxAttempts = getPositiveIntegerEnv("OPENAI_MAX_ATTEMPTS", DEFAULT_OPENAI_ATTEMPTS, 1, 4);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const response = await fetchOpenAI(apiKey, model, prompt, character, scenario, count, destinyPrompt);
       const payload = (await response.json().catch(() => ({}))) as OpenAIQuestionResponse;
       if (response.ok) return { payload };
 
       const error = buildOpenAIError(response, payload, attempt);
-      if (!isRetryableQuestionBankError(error) || attempt === MAX_OPENAI_ATTEMPTS) throw error;
+      if (!isRetryableQuestionBankError(error) || attempt === maxAttempts) throw error;
       lastError = error;
     } catch (error) {
       const normalizedError = normalizeQuestionBankError(error, attempt);
-      if (!isRetryableQuestionBankError(normalizedError) || attempt === MAX_OPENAI_ATTEMPTS) throw normalizedError;
+      if (!isRetryableQuestionBankError(normalizedError) || attempt === maxAttempts) throw normalizedError;
       lastError = normalizedError;
     }
 
     await waitBeforeRetry(attempt);
   }
 
-  throw lastError || new QuestionBankError("OpenAI 题库生成失败。", { provider: "openai", attempts: MAX_OPENAI_ATTEMPTS });
+  throw lastError || new QuestionBankError("OpenAI 题库生成失败。", { provider: "openai", attempts: maxAttempts });
 }
 
 async function fetchOpenAI(
@@ -112,9 +115,14 @@ async function fetchOpenAI(
   count: number,
   destinyPrompt: string | undefined,
 ) {
+  const timeoutMs = getPositiveIntegerEnv("OPENAI_FETCH_TIMEOUT_MS", DEFAULT_OPENAI_TIMEOUT_MS, 1000, 25000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     return await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
@@ -162,9 +170,12 @@ async function fetchOpenAI(
       }),
     });
   } catch (error) {
-    throw new QuestionBankError(error instanceof Error ? `OpenAI 请求失败：${error.message}` : "OpenAI 请求失败。", {
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    throw new QuestionBankError(isAbort ? `OpenAI 请求超时：超过 ${timeoutMs}ms 未返回。` : error instanceof Error ? `OpenAI 请求失败：${error.message}` : "OpenAI 请求失败。", {
       provider: "openai",
     });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -197,8 +208,14 @@ function isRetryableQuestionBankError(error: QuestionBankError) {
 
 function waitBeforeRetry(attempt: number) {
   return new Promise((resolve) => {
-    setTimeout(resolve, 400 * attempt);
+    setTimeout(resolve, 250 * attempt);
   });
+}
+
+function getPositiveIntegerEnv(name: string, fallback: number, min: number, max: number) {
+  const value = Number(process.env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 async function configureOptionalProxy() {
