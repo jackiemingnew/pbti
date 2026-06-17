@@ -14,10 +14,19 @@ import {
   takeCachedQuestionSet,
 } from "./services/questionCache";
 import { generateQuestions } from "./services/questionApi";
+import {
+  clearDecisionHistory,
+  createDecisionHistoryEntry,
+  loadDecisionHistory,
+  saveDecisionEntry,
+  updateDecisionFeedback,
+} from "./services/decisionHistory";
 import { recognizePokerPhoto } from "./services/photoRecognitionApi";
 import type {
   Answer,
   Character,
+  DecisionFeedback,
+  DecisionHistoryEntry,
   DecisionResult,
   PokerGameMode,
   PokerGameType,
@@ -28,7 +37,7 @@ import type {
   RecognizedPlayer,
 } from "./types";
 
-type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer";
+type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer" | "summary";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
@@ -93,6 +102,8 @@ function App() {
   const [character, setCharacter] = useState<Character | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Answer[]>([]);
   const [result, setResult] = useState<DecisionResult | null>(null);
+  const [currentDecisionId, setCurrentDecisionId] = useState<string | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<DecisionHistoryEntry[]>(() => loadDecisionHistory());
   const [destinyRoll, setDestinyRoll] = useState<number | null>(null);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [questionStatus, setQuestionStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
@@ -182,6 +193,7 @@ function App() {
     setDestinyRoll(nextCharacter.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
+    setCurrentDecisionId(null);
     setIsRevealing(false);
     setActiveQuestions([]);
     setQuestionError("");
@@ -258,8 +270,11 @@ function App() {
     clearRevealTimer();
     const delay = 1200 + Math.round(Math.random() * 600);
     const nextResult = buildDecisionResult(character, answers, destinyRoll, forceEasterEgg);
+    const entry = createDecisionHistoryEntry(character, activeQuestions, answers, nextResult);
     revealTimerRef.current = setTimeout(() => {
       setResult(nextResult);
+      setCurrentDecisionId(entry.id);
+      setHistoryEntries(saveDecisionEntry(entry));
       setIsRevealing(false);
       revealTimerRef.current = null;
     }, delay);
@@ -275,6 +290,7 @@ function App() {
     setDestinyRoll(character.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
+    setCurrentDecisionId(null);
     setIsRevealing(false);
     setActiveQuestions([]);
     setQuestionError("");
@@ -297,6 +313,22 @@ function App() {
     clearRevealTimer();
     setIsRevealing(false);
     setPage("photoAnalyzer");
+  }
+
+  function openSummary() {
+    clearRevealTimer();
+    setIsRevealing(false);
+    setHistoryEntries(loadDecisionHistory());
+    setPage("summary");
+  }
+
+  function setDecisionFeedback(feedback: DecisionFeedback) {
+    if (!currentDecisionId) return;
+    setHistoryEntries(updateDecisionFeedback(currentDecisionId, feedback));
+  }
+
+  function clearHistory() {
+    setHistoryEntries(clearDecisionHistory());
   }
 
   function savePromptConfig() {
@@ -329,6 +361,7 @@ function App() {
     setCharacter(null);
     setSelectedAnswers([]);
     setResult(null);
+    setCurrentDecisionId(null);
     setIsRevealing(false);
     setDestinyRoll(null);
     setActiveQuestions([]);
@@ -340,17 +373,27 @@ function App() {
     <div className="min-h-screen overflow-hidden bg-zinc-950 text-zinc-100">
       <div className="casino-bg min-h-screen">
         <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-          <header className="flex items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
-            <button onClick={goHome} className="flex items-center gap-3 text-left">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
+            <button onClick={goHome} className="flex min-w-0 items-center gap-3 text-left">
               <span className="grid h-11 w-11 place-items-center rounded-lg border border-amber-400/60 bg-zinc-950 text-xl text-amber-200 shadow-gold">
                 ♠
               </span>
-              <span>
+              <span className="min-w-0">
                 <span className="block text-sm font-black tracking-[0.24em] text-amber-500">PBTI TEST</span>
-                <span className="block text-lg font-black text-amber-100">PBTI：牌桌行为人格测试</span>
+                <span className="block truncate text-lg font-black text-amber-100">PBTI：牌桌行为人格测试</span>
               </span>
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                onClick={openSummary}
+                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                  page === "summary"
+                    ? "border-amber-300 bg-amber-300 text-zinc-950"
+                    : "border-amber-400/40 bg-amber-500/10 text-amber-100 hover:bg-amber-300 hover:text-zinc-950"
+                }`}
+              >
+                战绩总结
+              </button>
               <button
                 onClick={openPhotoAnalyzer}
                 className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
@@ -406,6 +449,8 @@ function App() {
                 onAgain={playAnotherHand}
                 onChangeCharacter={switchToRandomCharacter}
                 onHome={goHome}
+                currentFeedback={historyEntries.find((entry) => entry.id === currentDecisionId)?.feedback}
+                onFeedback={setDecisionFeedback}
               />
             )}
             {page === "promptAdmin" && (
@@ -422,6 +467,7 @@ function App() {
               />
             )}
             {page === "photoAnalyzer" && <PhotoAnalyzerPage onHome={goHome} />}
+            {page === "summary" && <SummaryPage entries={historyEntries} onBack={goHome} onClear={clearHistory} />}
           </div>
 
           <footer className="border-t border-amber-500/20 pt-4 text-center text-xs text-zinc-500">
@@ -620,6 +666,254 @@ function HowToPlaySection() {
       </div>
     </section>
   );
+}
+
+// ====================== Summary Page ======================
+
+function SummaryPage({
+  entries,
+  onBack,
+  onClear,
+}: {
+  entries: DecisionHistoryEntry[];
+  onBack: () => void;
+  onClear: () => void;
+}) {
+  const stats = useMemo(() => summarizeHistory(entries), [entries]);
+  const hasEntries = entries.length > 0;
+
+  return (
+    <section className="mx-auto w-full max-w-5xl space-y-5">
+      <div className="rounded-3xl border border-amber-500/35 bg-zinc-950/90 p-5 shadow-2xl sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.28em] text-amber-500">Local Record</p>
+            <h1 className="mt-2 text-3xl font-black text-amber-100 sm:text-5xl">牌桌画像总结</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+              每次抉择都会记录在当前浏览器本地。赢/输反馈会进入胜率、角色偏好和 PBTI 画像统计。
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onBack}
+              className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-amber-500 hover:text-amber-100"
+            >
+              回首页
+            </button>
+            {hasEntries && (
+              <button
+                onClick={onClear}
+                className="rounded-xl border border-red-500/50 px-4 py-2 text-sm font-bold text-red-100 transition hover:bg-red-500/10"
+              >
+                清空记录
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {!hasEntries ? (
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-950/85 p-8 text-center">
+          <p className="text-xl font-black text-amber-100">还没有战绩</p>
+          <p className="mt-2 text-sm text-zinc-400">完成一次人格决策，并在结果页标记赢/输后，这里就会开始长出你的牌桌画像。</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryMetric label="总抉择" value={String(stats.total)} helper="本地记录局数" />
+            <SummaryMetric label="已反馈" value={String(stats.feedbackTotal)} helper={`${stats.pendingTotal} 局未标记输赢`} />
+            <SummaryMetric label="胜率" value={`${stats.winRate}%`} helper={`${stats.winTotal} 赢 / ${stats.lossTotal} 输`} />
+            <SummaryMetric label="最常行动" value={stats.favoriteAction} helper="按最终建议统计" />
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+            <div className="rounded-3xl border border-amber-500/25 bg-zinc-950/85 p-5">
+              <h2 className="text-xl font-black text-amber-100">PBTI 画像打分</h2>
+              <p className="mt-1 text-sm text-zinc-500">基于角色基础值和你的答案 modifiers 汇总，仅用于娱乐画像。</p>
+              <div className="mt-5 space-y-4">
+                <ProfileBar label="鸡" value={stats.profile.chicken} description="偷鸡、主动下注、讲故事欲望" />
+                <ProfileBar label="钱" value={stats.profile.money} description="看牌、抗压、用筹码买剧情" />
+                <ProfileBar label="术" value={stats.profile.skill} description="范围、赔率、理论包装能力" />
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-zinc-800 bg-zinc-950/85 p-5">
+              <h2 className="text-xl font-black text-amber-100">行动分布</h2>
+              <div className="mt-5 space-y-3">
+                {stats.actionBars.map((bar) => (
+                  <DistributionBar key={bar.label} label={bar.label} count={bar.count} total={stats.total} color={bar.color} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+            <div className="rounded-3xl border border-zinc-800 bg-zinc-950/85 p-5">
+              <h2 className="text-xl font-black text-amber-100">常用人格</h2>
+              <div className="mt-4 space-y-3">
+                {stats.characterBars.map((bar) => (
+                  <DistributionBar key={bar.label} label={bar.label} count={bar.count} total={stats.total} color="bg-amber-400" />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-zinc-800 bg-zinc-950/85 p-5">
+              <h2 className="text-xl font-black text-amber-100">最近抉择</h2>
+              <div className="mt-4 space-y-3">
+                {entries.slice(0, 8).map((entry) => (
+                  <HistoryRow key={entry.id} entry={entry} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function SummaryMetric({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/85 p-4">
+      <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-500">{label}</p>
+      <p className="mt-2 text-3xl font-black text-amber-100">{value}</p>
+      <p className="mt-1 text-xs text-zinc-500">{helper}</p>
+    </div>
+  );
+}
+
+function ProfileBar({ label, value, description }: { label: string; value: number; description: string }) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="font-black text-amber-100">{label}</span>
+        <span className="text-sm font-bold text-amber-300">{value.toFixed(1)}</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-200" style={{ width: `${Math.max(0, Math.min(100, value * 10))}%` }} />
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">{description}</p>
+    </div>
+  );
+}
+
+function DistributionBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+  const percent = total ? Math.round((count / total) * 100) : 0;
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-sm">
+        <span className="font-bold text-zinc-200">{label}</span>
+        <span className="text-zinc-500">
+          {count} · {percent}%
+        </span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function HistoryRow({ entry }: { entry: DecisionHistoryEntry }) {
+  const feedbackLabel = entry.feedback === "win" ? "赢" : entry.feedback === "loss" ? "输" : "未反馈";
+  const feedbackClass = entry.feedback === "win" ? "text-emerald-300" : entry.feedback === "loss" ? "text-red-300" : "text-zinc-500";
+  const firstQuestion = entry.questions[0];
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-black text-amber-100">{entry.character.name}</p>
+          <p className="text-xs text-zinc-500">{new Date(entry.createdAt).toLocaleString()}</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm font-bold">
+          <span className="text-zinc-300">{displayAction(entry.result.action)}</span>
+          <span className={feedbackClass}>{feedbackLabel}</span>
+        </div>
+      </div>
+      {firstQuestion && (
+        <p className="mt-2 line-clamp-2 text-sm leading-5 text-zinc-400">
+          {firstQuestion.text}
+          {firstQuestion.answer ? ` · ${firstQuestion.answer.label}` : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function summarizeHistory(entries: DecisionHistoryEntry[]) {
+  const total = entries.length;
+  const winTotal = entries.filter((entry) => entry.feedback === "win").length;
+  const lossTotal = entries.filter((entry) => entry.feedback === "loss").length;
+  const feedbackTotal = winTotal + lossTotal;
+  const pendingTotal = total - feedbackTotal;
+  const winRate = feedbackTotal ? Math.round((winTotal / feedbackTotal) * 100) : 0;
+
+  const actionCounts = countBy(entries, (entry) => displayAction(entry.result.action));
+  const characterCounts = countBy(entries, (entry) => entry.character.name);
+  const profileTotals = entries.reduce(
+    (acc, entry) => {
+      const base = entry.character.stats || { chicken: 5, money: 5, skill: 5 };
+      const answerBoost = entry.questions.reduce(
+        (boost, question) => ({
+          chicken: boost.chicken + (question.answer?.modifiers.chicken || 0),
+          money: boost.money + (question.answer?.modifiers.money || 0),
+          skill: boost.skill + (question.answer?.modifiers.skill || 0),
+        }),
+        { chicken: 0, money: 0, skill: 0 },
+      );
+      acc.chicken += clampProfile(base.chicken + answerBoost.chicken);
+      acc.money += clampProfile(base.money + answerBoost.money);
+      acc.skill += clampProfile(base.skill + answerBoost.skill);
+      return acc;
+    },
+    { chicken: 0, money: 0, skill: 0 },
+  );
+
+  const actionBars = [
+    { label: "过牌/弃牌", count: actionCounts["过牌/弃牌"] || 0, color: "bg-emerald-500" },
+    { label: "跟注", count: actionCounts["跟注"] || 0, color: "bg-blue-500" },
+    { label: "加注", count: actionCounts["加注"] || 0, color: "bg-red-500" },
+  ];
+  const favoriteAction = [...actionBars].sort((a, b) => b.count - a.count)[0]?.label || "暂无";
+  const characterBars = Object.entries(characterCounts)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  return {
+    total,
+    winTotal,
+    lossTotal,
+    feedbackTotal,
+    pendingTotal,
+    winRate,
+    favoriteAction,
+    actionBars,
+    characterBars,
+    profile: {
+      chicken: total ? profileTotals.chicken / total : 0,
+      money: total ? profileTotals.money / total : 0,
+      skill: total ? profileTotals.skill / total : 0,
+    },
+  };
+}
+
+function displayAction(action: DecisionResult["action"]) {
+  if (action === "Check" || action === "Fold") return "过牌/弃牌";
+  if (action === "Call") return "跟注";
+  return "加注";
+}
+
+function countBy<T>(items: T[], getKey: (item: T) => string) {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    const key = getKey(item);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function clampProfile(value: number) {
+  return Math.max(0, Math.min(10, value));
 }
 
 // ====================== Photo Analyzer ======================
@@ -1161,6 +1455,8 @@ function ResultFlow({
   onAgain,
   onChangeCharacter,
   onHome,
+  currentFeedback,
+  onFeedback,
 }: {
   character: Character;
   questions: Question[];
@@ -1176,6 +1472,8 @@ function ResultFlow({
   onAgain: () => void;
   onChangeCharacter: () => void;
   onHome: () => void;
+  currentFeedback?: DecisionFeedback;
+  onFeedback: (feedback: DecisionFeedback) => void;
 }) {
   const questionPhase = result === null;
   const isLoading = questionStatus === "loading";
@@ -1292,6 +1590,8 @@ function ResultFlow({
           onAgain={onAgain}
           onChangeCharacter={onChangeCharacter}
           onHome={onHome}
+          currentFeedback={currentFeedback}
+          onFeedback={onFeedback}
         />
       )}
     </section>

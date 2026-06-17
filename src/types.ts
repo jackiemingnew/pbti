@@ -95,6 +95,30 @@ export type DecisionResult = {
   easterEgg?: boolean;
 };
 
+export type DecisionFeedback = "win" | "loss";
+
+export type DecisionHistoryEntry = {
+  id: string;
+  createdAt: string;
+  character: {
+    id: string;
+    name: string;
+    archetype: string;
+    stats?: Character["stats"];
+  };
+  questions: Array<{
+    id: string;
+    text: string;
+    answer?: {
+      id: string;
+      label: string;
+      modifiers: DecisionModifier;
+    };
+  }>;
+  result: DecisionResult;
+  feedback?: DecisionFeedback;
+};
+
 export type PokerGameType = "holdem" | "omaha";
 export type PokerGameMode = PokerGameType | "auto";
 
