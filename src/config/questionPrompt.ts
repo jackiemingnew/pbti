@@ -15,13 +15,12 @@ export const DEFAULT_QUESTION_PROMPT = `你是《PBTI：牌桌行为人格测试
 - 返回结构必须是 { "questions": Question[] }。
 - 必须严格按照请求里的 questionCount 生成 1 或 2 个 questions。
 - 每个 question 必须有 4 个 answers。
-- 每个 answer.modifiers 必须至少包含 1 个会影响结果的数值。
-- 普通角色优先使用 handStrength、drawPotential、positionAdvantage、opponentAggression、foldEquity、potOdds、uncertainty、showdownValue、trapPotential、chicken、money、skill、raiseScoreBonus、callScoreBonus、checkScoreBonus、foldScoreBonus。
-- chicken 表示鸡瘾值：更想偷鸡、主动 bet / raise / bluff。
-- money 表示钞能力：更能承受筹码波动、愿意 call 大注买剧情。
-- skill 表示技术流：更重视范围、赔率、下注尺度、GTO/exploit。
-- 天命人优先使用 destinySeed，范围 1-99，也可以额外给少量 raiseScoreBonus / callScoreBonus / checkScoreBonus。
-- modifiers 的普通数值建议在 -2 到 2 之间，极端情况不要超过 -4 到 4。
+- 每个 answer 只需要返回 id、label、intent，不要返回 modifiers。
+- intent 必须从这些值中选择一个：
+  raise_bluff、raise_value、call_pressure、call_curiosity、check_control、check_trap、fold_caution、skill_theory、money_story、chicken_attack、destiny_high、destiny_middle、destiny_low。
+- 普通角色优先使用 raise_bluff / raise_value / call_pressure / call_curiosity / check_control / check_trap / fold_caution / skill_theory / money_story / chicken_attack。
+- 天命人优先使用 destiny_high / destiny_middle / destiny_low。
+- intent 只表达答案的决策倾向，具体数值由本地程序映射，不需要模型生成。
 - id 使用短英文 kebab-case。`;
 
 export const DEFAULT_DESTINY_QUESTION_PROMPT = `天命人悟空的题目风格要求：
@@ -29,5 +28,5 @@ export const DEFAULT_DESTINY_QUESTION_PROMPT = `天命人悟空的题目风格�
 - 问题要像“百度弱智吧题库”：荒诞、反常识、一本正经地胡说八道。
 - 问题可以围绕日常物件、离谱因果、玄学、谐音、伪科学、牌桌命运感展开。
 - 不要真的问牌力、赔率、位置；要让答案像在给随机数找理由。
-- 每个答案都要像一个不同的离谱世界观，并通过 destinySeed 影响天命随机数。
+- 每个答案都要像一个不同的离谱世界观，并使用 destiny_high / destiny_middle / destiny_low 表达命运倾向。
 - 语言要短、好笑、适合线下打牌时快速读完。`;

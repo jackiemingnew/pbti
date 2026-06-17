@@ -311,6 +311,7 @@ function App() {
               <HomePage
                 onSelectCharacter={chooseCharacter}
                 onRandomCharacter={switchToRandomCharacter}
+                onOpenPromptAdmin={openPromptAdmin}
                 easterEggActive={forceEasterEgg}
                 onToggleEasterEgg={toggleEasterEgg}
               />
@@ -361,11 +362,13 @@ function App() {
 function HomePage({
   onSelectCharacter,
   onRandomCharacter,
+  onOpenPromptAdmin,
   easterEggActive,
   onToggleEasterEgg,
 }: {
   onSelectCharacter: (character: Character) => void;
   onRandomCharacter: () => void;
+  onOpenPromptAdmin: () => void;
   easterEggActive: boolean;
   onToggleEasterEgg: () => void;
 }) {
@@ -421,7 +424,7 @@ function HomePage({
 
       <HowToPlaySection />
 
-      <div className="flex justify-center">
+      <div className="flex flex-wrap items-center justify-center gap-4">
         <label
           className="inline-flex cursor-pointer items-center gap-2 text-xs transition hover:text-purple-400"
           style={{ color: easterEggActive ? "#a855f7" : "#52525b" }}
@@ -434,6 +437,12 @@ function HomePage({
           />
           <span>🥚 彩蛋模式（强制弃牌）</span>
         </label>
+        <button
+          onClick={onOpenPromptAdmin}
+          className="rounded-full border border-zinc-800 bg-zinc-950/50 px-3 py-1.5 text-xs font-semibold text-zinc-500 transition hover:border-amber-500/60 hover:text-amber-200"
+        >
+          修改题库 Prompt
+        </button>
       </div>
     </section>
   );
