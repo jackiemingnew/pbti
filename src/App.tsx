@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CharacterAvatar } from "./components/CharacterCard";
+import { PbtiProfileDetail } from "./components/PbtiProfileDetail";
+import { PbtiProfileGrid } from "./components/PbtiProfileGrid";
 import { PlayingCard } from "./components/PlayingCard";
 import { ResultCard } from "./components/ResultCard";
 import { DEFAULT_DESTINY_QUESTION_PROMPT, DEFAULT_QUESTION_PROMPT } from "./config/questionPrompt";
 import { characters } from "./data/characters";
+import { homeQuotes, pickLoadingQuote, randomCopy } from "./data/gameCopy";
+import { getPbtiProfile, pbtiProfiles, type PbtiProfile } from "./data/pbtiProfiles";
 import { generateDecision } from "./logic/decisionEngine";
+import { classifyPbtiProfile } from "./logic/pbtiClassifier";
 import { analyzeShowdown, cardsToText, inferGameType, parseCards } from "./logic/pokerHandEvaluator";
 import {
   buildQuestionRequestKey,
@@ -37,7 +42,7 @@ import type {
   RecognizedPlayer,
 } from "./types";
 
-type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer" | "summary";
+type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer" | "summary" | "profiles" | "profileDetail";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
@@ -109,6 +114,8 @@ function App() {
   const [questionStatus, setQuestionStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [questionError, setQuestionError] = useState("");
   const [isRevealing, setIsRevealing] = useState(false);
+  const [revealQuote, setRevealQuote] = useState("");
+  const [selectedProfile, setSelectedProfile] = useState<PbtiProfile | null>(null);
   const [forceEasterEgg, setForceEasterEgg] = useState(false);
   const [questionPrompt, setQuestionPrompt] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_QUESTION_PROMPT;
@@ -195,6 +202,7 @@ function App() {
     setResult(null);
     setCurrentDecisionId(null);
     setIsRevealing(false);
+    setRevealQuote("");
     setActiveQuestions([]);
     setQuestionError("");
     loadQuestionBank(nextCharacter, count);
@@ -267,6 +275,7 @@ function App() {
     if (!character || !hasAnsweredAll || isRevealing) return;
 
     setIsRevealing(true);
+    setRevealQuote(pickLoadingQuote(character));
     clearRevealTimer();
     const delay = 1200 + Math.round(Math.random() * 600);
     const nextResult = buildDecisionResult(character, answers, destinyRoll, forceEasterEgg);
@@ -292,6 +301,7 @@ function App() {
     setResult(null);
     setCurrentDecisionId(null);
     setIsRevealing(false);
+    setRevealQuote("");
     setActiveQuestions([]);
     setQuestionError("");
     loadQuestionBank(character, count);
@@ -320,6 +330,20 @@ function App() {
     setIsRevealing(false);
     setHistoryEntries(loadDecisionHistory());
     setPage("summary");
+  }
+
+  function openProfiles() {
+    clearRevealTimer();
+    setIsRevealing(false);
+    setSelectedProfile(null);
+    setPage("profiles");
+  }
+
+  function openProfileDetail(profile: PbtiProfile) {
+    clearRevealTimer();
+    setIsRevealing(false);
+    setSelectedProfile(profile);
+    setPage("profileDetail");
   }
 
   function setDecisionFeedback(feedback: DecisionFeedback) {
@@ -395,6 +419,16 @@ function App() {
                 战绩总结
               </button>
               <button
+                onClick={openProfiles}
+                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                  page === "profiles" || page === "profileDetail"
+                    ? "border-fuchsia-300 bg-fuchsia-300 text-zinc-950"
+                    : "border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-100 hover:bg-fuchsia-300 hover:text-zinc-950"
+                }`}
+              >
+                人格图鉴
+              </button>
+              <button
                 onClick={openPhotoAnalyzer}
                 className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
                   page === "photoAnalyzer"
@@ -442,6 +476,7 @@ function App() {
                 selectedAnswers={selectedAnswers}
                 result={result}
                 isRevealing={isRevealing}
+                revealQuote={revealQuote}
                 destinyRoll={destinyRoll}
                 answeredAllQuestions={answeredAllQuestions}
                 onAnswer={answerQuestion}
@@ -468,7 +503,11 @@ function App() {
               />
             )}
             {page === "photoAnalyzer" && <PhotoAnalyzerPage onHome={goHome} />}
-            {page === "summary" && <SummaryPage entries={historyEntries} onBack={goHome} onClear={clearHistory} />}
+            {page === "summary" && <SummaryPage entries={historyEntries} onBack={goHome} onClear={clearHistory} onOpenProfiles={openProfiles} />}
+            {page === "profiles" && <ProfilesPage onSelect={openProfileDetail} onBack={goHome} />}
+            {page === "profileDetail" && selectedProfile && (
+              <ProfileDetailPage profile={selectedProfile} onBack={openProfiles} />
+            )}
           </div>
 
           <footer className="border-t border-amber-500/20 pt-4 text-center text-xs text-zinc-500">
@@ -495,6 +534,8 @@ function HomePage({
   easterEggActive: boolean;
   onToggleEasterEgg: () => void;
 }) {
+  const homeQuote = useMemo(() => randomCopy(homeQuotes), []);
+
   return (
     <section className="w-full space-y-6 sm:space-y-10">
       <div className="grid items-center gap-6 lg:gap-8 lg:grid-cols-[1fr_1fr]">
@@ -502,6 +543,9 @@ function HomePage({
           <p className="text-sm font-black tracking-[0.18em] text-amber-500">Poker Behavior Type Indicator</p>
           <h1 className="mt-4 text-4xl font-black leading-tight text-amber-100 sm:text-6xl lg:text-7xl">PBTI：牌桌行为人格测试</h1>
           <p className="mt-4 text-lg leading-8 text-zinc-300">鸡 / 钱 / 术，三维一测，看看你在牌桌上到底是哪种人。</p>
+          <blockquote className="mt-5 max-w-2xl border-l-2 border-amber-400/70 pl-4 text-sm font-bold leading-6 text-amber-100/85 sm:text-base">
+            “{homeQuote}”
+          </blockquote>
           <p className="mt-4 max-w-2xl leading-7 text-zinc-400">
             鸡：你有多想偷。
             <br />
@@ -675,16 +719,27 @@ function SummaryPage({
   entries,
   onBack,
   onClear,
+  onOpenProfiles,
 }: {
   entries: DecisionHistoryEntry[];
   onBack: () => void;
   onClear: () => void;
+  onOpenProfiles: () => void;
 }) {
   const stats = useMemo(() => summarizeHistory(entries), [entries]);
+  const classification = useMemo(
+    () =>
+      classifyPbtiProfile({
+        ...stats.profile,
+        actionCounts: stats.actionCounts,
+        totalHands: stats.total,
+      }),
+    [stats],
+  );
   const hasEntries = entries.length > 0;
 
   return (
-    <section className="mx-auto w-full max-w-5xl space-y-5">
+    <section className="mx-auto w-full max-w-6xl space-y-5">
       <div className="rounded-3xl border border-amber-500/35 bg-zinc-950/90 p-5 shadow-2xl sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -695,6 +750,12 @@ function SummaryPage({
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={onOpenProfiles}
+              className="rounded-xl border border-fuchsia-500/45 px-4 py-2 text-sm font-bold text-fuchsia-100 transition hover:bg-fuchsia-500/10"
+            >
+              全部人格
+            </button>
             <button
               onClick={onBack}
               className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-amber-500 hover:text-amber-100"
@@ -748,6 +809,8 @@ function SummaryPage({
             </div>
           </div>
 
+          <PbtiProfileDetail profile={getPbtiProfile(classification.code)} classification={classification} totalHands={stats.total} />
+
           <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
             <div className="rounded-3xl border border-zinc-800 bg-zinc-950/85 p-5">
               <h2 className="text-xl font-black text-amber-100">常用人格</h2>
@@ -769,6 +832,35 @@ function SummaryPage({
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+function ProfilesPage({ onSelect, onBack }: { onSelect: (profile: PbtiProfile) => void; onBack: () => void }) {
+  return (
+    <section className="w-full space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-fuchsia-400">Personality Collection</p>
+          <h1 className="mt-2 text-3xl font-black text-amber-100 sm:text-5xl">PBTI 全部人格档案</h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">鸡 / 稳，豪 / 谨，术 / 风，组合出 8 种牌桌人格。</p>
+        </div>
+        <button onClick={onBack} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-amber-400">
+          回首页
+        </button>
+      </div>
+      <PbtiProfileGrid profiles={pbtiProfiles} onSelect={onSelect} />
+    </section>
+  );
+}
+
+function ProfileDetailPage({ profile, onBack }: { profile: PbtiProfile; onBack: () => void }) {
+  return (
+    <section className="mx-auto w-full max-w-6xl space-y-4">
+      <button onClick={onBack} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-amber-400">
+        返回全部人格
+      </button>
+      <PbtiProfileDetail profile={profile} />
     </section>
   );
 }
@@ -850,6 +942,14 @@ function summarizeHistory(entries: DecisionHistoryEntry[]) {
   const winRate = feedbackTotal ? Math.round((winTotal / feedbackTotal) * 100) : 0;
 
   const actionCounts = countBy(entries, (entry) => displayAction(entry.result.action));
+  const rawActionCounts = entries.reduce(
+    (counts, entry) => {
+      const action = entry.result.action.toLowerCase() as "fold" | "check" | "call" | "raise";
+      counts[action] += 1;
+      return counts;
+    },
+    { fold: 0, check: 0, call: 0, raise: 0 },
+  );
   const characterCounts = countBy(entries, (entry) => entry.character.name);
   const profileTotals = entries.reduce(
     (acc, entry) => {
@@ -890,6 +990,7 @@ function summarizeHistory(entries: DecisionHistoryEntry[]) {
     winRate,
     favoriteAction,
     actionBars,
+    actionCounts: rawActionCounts,
     characterBars,
     profile: {
       chicken: total ? profileTotals.chicken / total : 0,
@@ -1297,14 +1398,6 @@ function gameTypeLabel(gameType: PokerGameType | "unknown") {
   return "未确定";
 }
 
-function revealLoadingText(character: Character) {
-  if (character.id === "king-chow") return "正在整理西装……";
-  if (character.id === "bluff-assassin") return "正在编写三条街剧本……";
-  if (character.id === "boss-whale") return "正在评估剧情价值……";
-  if (character.id === "destiny-fool") return "正在掷天命骰子……";
-  return "正在进行人格审判……";
-}
-
 const defaultPlayers: RecognizedPlayer[] = [
   { id: "player-1", seat: "Hero", holeCards: [] },
   { id: "player-2", seat: "Villain", holeCards: [] },
@@ -1449,6 +1542,7 @@ function ResultFlow({
   selectedAnswers,
   result,
   isRevealing,
+  revealQuote,
   destinyRoll,
   answeredAllQuestions,
   onAnswer,
@@ -1467,6 +1561,7 @@ function ResultFlow({
   selectedAnswers: Answer[];
   result: DecisionResult | null;
   isRevealing: boolean;
+  revealQuote: string;
   destinyRoll: number | null;
   answeredAllQuestions: boolean;
   onAnswer: (questionIndex: number, answer: Answer) => void;
@@ -1532,7 +1627,7 @@ function ResultFlow({
             {isRevealing && (
               <div className="rounded-2xl border border-amber-400/50 bg-amber-400/10 p-5 text-center shadow-gold">
                 <p className="text-xs font-black uppercase tracking-[0.28em] text-amber-400">Personality Judgement</p>
-                <p className="mt-3 text-xl font-black text-amber-100">{revealLoadingText(character)}</p>
+                <p className="mt-3 text-xl font-black text-amber-100">{revealQuote || "正在进行人格审判……"}</p>
                 <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-zinc-800">
                   <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-amber-500 via-yellow-200 to-amber-500" />
                 </div>

@@ -129,4 +129,55 @@ public/
   avatars/
 ```
 
+## 生成人格图鉴头像
+
+项目提供一次性素材生成脚本。它只在本地 Node 进程中读取 `OPENAI_API_KEY`，不会进入 Vite 前端代码或浏览器。
+
+```bash
+npm run generate:pbti-avatars
+```
+
+默认跳过已经存在的图片。需要重新生成全部头像时：
+
+```bash
+npm run generate:pbti-avatars -- --force
+```
+
+只生成一个指定人格：
+
+```bash
+npm run generate:pbti-avatars -- --only=鸡豪术
+npm run generate:pbti-avatars -- --only=ji-hao-shu.png
+```
+
+可选配置：
+
+```bash
+OPENAI_IMAGE_MODEL=gpt-image-2
+OPENAI_IMAGE_QUALITY=low
+```
+
+`low` 适合网页卡片并且生成较快；需要更高精度的重绘素材时可设为 `medium`。
+
+生成目录：
+
+```text
+public/avatars/profiles/
+```
+
+对应文件：
+
+```text
+ji-hao-shu.png
+ji-hao-feng.png
+ji-jin-shu.png
+ji-jin-feng.png
+wen-hao-shu.png
+wen-hao-feng.png
+wen-jin-shu.png
+wen-jin-feng.png
+```
+
+手工绘制替换时，保持相同文件名放入该目录即可。页面在文件缺失或加载失败时会自动显示渐变 fallback 卡片。
+
 免责声明：本游戏仅用于娱乐与策略思维训练，不构成赌博建议。

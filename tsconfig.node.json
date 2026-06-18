@@ -11,5 +11,5 @@
     "tsBuildInfoFile": "./node_modules/.cache/tsconfig.node.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "api/**/*.ts", "server/**/*.ts", "src/config/questionPrompt.ts", "src/services/questionFormat.ts", "src/types.ts"]
+  "include": ["vite.config.ts", "api/**/*.ts", "server/**/*.ts", "scripts/**/*.ts", "src/config/questionPrompt.ts", "src/services/questionFormat.ts", "src/types.ts"]
 }
