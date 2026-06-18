@@ -145,6 +145,16 @@ export function ResultCard({
             {roast}
           </ResultSection>
 
+          {result.opponentRead && (
+            <ResultSection title="对手读法" tone="amber" compact>
+              <p className="font-black text-amber-100">
+                {result.opponentRead.name}｜{result.opponentRead.description}
+              </p>
+              <p className="mt-2 text-zinc-300">策略影响：{result.opponentRead.strategyHint}</p>
+              <p className="mt-2 text-zinc-400">本次偏差：{result.opponentRead.resultBias}</p>
+            </ResultSection>
+          )}
+
           <ResultSection title="常见死法" compact>
             {deathPattern}
           </ResultSection>

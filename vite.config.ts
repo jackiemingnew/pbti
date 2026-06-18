@@ -2,7 +2,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { generateQuestionBankFromOpenAI, getQuestionBankErrorStatus, toQuestionBankErrorPayload } from "./server/openaiQuestions.js";
 import { getPokerVisionErrorStatus, recognizePokerPhotoWithOpenAI, toPokerVisionErrorPayload } from "./server/openaiVision.js";
-import type { Character, PokerGameMode, PokerScenario } from "./src/types.js";
+import type { Character, OpponentProfile, PokerGameMode, PokerScenario } from "./src/types.js";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -63,6 +63,7 @@ function localQuestionApi(env: Record<string, string>): Plugin {
             scenario: body.scenario as PokerScenario | undefined,
             questionCount: typeof body.questionCount === "number" ? body.questionCount : undefined,
             destinyPrompt: typeof body.destinyPrompt === "string" ? body.destinyPrompt : undefined,
+            opponentProfile: typeof body.opponentProfile === "object" && body.opponentProfile ? (body.opponentProfile as OpponentProfile) : undefined,
           });
 
           response.end(JSON.stringify({ questions }));
@@ -145,6 +146,7 @@ async function readJsonBody(request: import("node:http").IncomingMessage) {
     scenario?: unknown;
     questionCount?: unknown;
     destinyPrompt?: unknown;
+    opponentProfile?: unknown;
     imageDataUrl?: unknown;
     mode?: unknown;
   };

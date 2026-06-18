@@ -33,6 +33,16 @@ export type Question = {
   answers: Answer[];
 };
 
+export type OpponentProfile = {
+  id: string;
+  name: string;
+  shortName: string;
+  description: string;
+  strategyHint: string;
+  resultBias: string;
+  modifiers: DecisionModifier;
+};
+
 export type Character = {
   id: string;
   name: string;
@@ -93,6 +103,7 @@ export type DecisionResult = {
   destinyEffect?: string;
   specialEventName?: string;
   easterEgg?: boolean;
+  opponentRead?: Pick<OpponentProfile, "id" | "name" | "shortName" | "description" | "strategyHint" | "resultBias">;
 };
 
 export type DecisionFeedback = "win" | "loss";
@@ -115,6 +126,7 @@ export type DecisionHistoryEntry = {
       modifiers: DecisionModifier;
     };
   }>;
+  opponentProfile?: Pick<OpponentProfile, "id" | "name" | "shortName" | "description" | "strategyHint" | "resultBias">;
   result: DecisionResult;
   feedback?: DecisionFeedback;
 };

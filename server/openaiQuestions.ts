@@ -1,5 +1,5 @@
 import { normalizeQuestions, parseModelJson, questionSchema, type OpenAIQuestionResponse } from "../src/services/questionFormat.js";
-import type { Character, PokerScenario, Question } from "../src/types.js";
+import type { Character, OpponentProfile, PokerScenario, Question } from "../src/types.js";
 
 export type QuestionBankInput = {
   apiKey: string;
@@ -9,6 +9,7 @@ export type QuestionBankInput = {
   scenario?: PokerScenario;
   questionCount?: number;
   destinyPrompt?: string;
+  opponentProfile?: OpponentProfile | null;
 };
 
 type ErrorDetails = {
@@ -40,11 +41,11 @@ let configuredProxyUrl = "";
 const DEFAULT_OPENAI_ATTEMPTS = process.env.VERCEL ? 1 : 3;
 const DEFAULT_OPENAI_TIMEOUT_MS = process.env.VERCEL ? 25000 : 12000;
 
-export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, character, scenario, questionCount = 2, destinyPrompt }: QuestionBankInput): Promise<Question[]> {
+export async function generateQuestionBankFromOpenAI({ apiKey, model, prompt, character, scenario, questionCount = 2, destinyPrompt, opponentProfile }: QuestionBankInput): Promise<Question[]> {
   await configureOptionalProxy();
   const count = Math.max(1, Math.min(2, Math.round(questionCount)));
 
-  const { payload } = await requestOpenAIWithRetry(apiKey, model, prompt, character, scenario, count, destinyPrompt);
+  const { payload } = await requestOpenAIWithRetry(apiKey, model, prompt, character, scenario, count, destinyPrompt, opponentProfile);
 
   const parsed = parseModelJson(payload);
   const questions = normalizeQuestions(parsed?.questions);
@@ -80,6 +81,7 @@ async function requestOpenAIWithRetry(
   scenario: PokerScenario | undefined,
   count: number,
   destinyPrompt: string | undefined,
+  opponentProfile: OpponentProfile | null | undefined,
 ) {
   let lastError: QuestionBankError | null = null;
 
@@ -87,7 +89,7 @@ async function requestOpenAIWithRetry(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const response = await fetchOpenAI(apiKey, model, prompt, character, scenario, count, destinyPrompt);
+      const response = await fetchOpenAI(apiKey, model, prompt, character, scenario, count, destinyPrompt, opponentProfile);
       const payload = (await response.json().catch(() => ({}))) as OpenAIQuestionResponse;
       if (response.ok) return { payload };
 
@@ -114,6 +116,7 @@ async function fetchOpenAI(
   scenario: PokerScenario | undefined,
   count: number,
   destinyPrompt: string | undefined,
+  opponentProfile: OpponentProfile | null | undefined,
 ) {
   const timeoutMs = getPositiveIntegerEnv("OPENAI_FETCH_TIMEOUT_MS", DEFAULT_OPENAI_TIMEOUT_MS, 1000, 25000);
   const controller = new AbortController();
@@ -151,6 +154,15 @@ async function fetchOpenAI(
                     stats: character.stats ?? null,
                   },
                   scenario: scenario ?? null,
+                  opponentProfile: opponentProfile
+                    ? {
+                        id: opponentProfile.id,
+                        name: opponentProfile.name,
+                        description: opponentProfile.description,
+                        strategyHint: opponentProfile.strategyHint,
+                        resultBias: opponentProfile.resultBias,
+                      }
+                    : null,
                   offlineDecisionMode: true,
                   questionCount: count,
                   destinyPrompt: character.decisionMode === "destiny" ? destinyPrompt || null : null,

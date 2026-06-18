@@ -7,6 +7,7 @@ import { ResultCard } from "./components/ResultCard";
 import { DEFAULT_DESTINY_QUESTION_PROMPT, DEFAULT_QUESTION_PROMPT } from "./config/questionPrompt";
 import { characters } from "./data/characters";
 import { homeQuotes, pickLoadingQuote, randomCopy } from "./data/gameCopy";
+import { opponentProfiles, opponentProfileSnapshot, opponentProfileToPrompt } from "./data/opponentProfiles";
 import { getPbtiProfile, pbtiProfiles, type PbtiProfile } from "./data/pbtiProfiles";
 import { generateDecision } from "./logic/decisionEngine";
 import { classifyPbtiProfile } from "./logic/pbtiClassifier";
@@ -37,6 +38,7 @@ import type {
   DecisionFeedback,
   DecisionHistoryEntry,
   DecisionResult,
+  OpponentProfile,
   PokerGameMode,
   PokerGameType,
   PokerPhotoRecognition,
@@ -46,7 +48,7 @@ import type {
   RecognizedPlayer,
 } from "./types";
 
-type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer" | "summary" | "profiles" | "profileDetail" | "vpipTracker";
+type Page = "home" | "opponentRead" | "result" | "promptAdmin" | "photoAnalyzer" | "summary" | "profiles" | "profileDetail" | "vpipTracker";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
@@ -78,7 +80,16 @@ const OFFLINE_DECISION_CONTEXT: PokerScenario = {
   },
 };
 
-function buildDecisionResult(character: Character, selectedAnswers: Answer[], destinyRoll: number | null, forceEasterEgg: boolean): DecisionResult {
+function opponentAnswer(profile: OpponentProfile): Answer {
+  return {
+    id: `opponent-${profile.id}`,
+    label: `对手读法：${profile.name}`,
+    modifiers: profile.modifiers,
+  };
+}
+
+function buildDecisionResult(character: Character, selectedAnswers: Answer[], destinyRoll: number | null, forceEasterEgg: boolean, opponentProfile: OpponentProfile | null): DecisionResult {
+  const opponentRead = opponentProfileSnapshot(opponentProfile);
   if (forceEasterEgg || Math.random() < 0.05) {
     const destiny = {
       status: "宇宙改判",
@@ -100,16 +111,22 @@ function buildDecisionResult(character: Character, selectedAnswers: Answer[], de
       destinyEffect: destiny.effect,
       specialEventName: destiny.specialEventName,
       easterEgg: true,
+      opponentRead,
     };
   }
 
-  return generateDecision(character, OFFLINE_DECISION_CONTEXT, selectedAnswers, destinyRoll ?? undefined);
+  const answersWithOpponent = opponentProfile ? [...selectedAnswers, opponentAnswer(opponentProfile)] : selectedAnswers;
+  return {
+    ...generateDecision(character, OFFLINE_DECISION_CONTEXT, answersWithOpponent, destinyRoll ?? undefined),
+    opponentRead,
+  };
 }
 
 function App() {
   const [page, setPage] = useState<Page>("home");
   const [character, setCharacter] = useState<Character | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Answer[]>([]);
+  const [selectedOpponentProfile, setSelectedOpponentProfile] = useState<OpponentProfile | null>(null);
   const [result, setResult] = useState<DecisionResult | null>(null);
   const [currentDecisionId, setCurrentDecisionId] = useState<string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<DecisionHistoryEntry[]>(() => loadDecisionHistory());
@@ -138,24 +155,38 @@ function App() {
     return Boolean(activeQuestions.length && selectedAnswers.filter(Boolean).length === activeQuestions.length);
   }, [activeQuestions.length, selectedAnswers]);
 
-  function pickFallbackQuestions(char: Character, count: number) {
-    return [...char.questions]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.min(count, char.questions.length));
+  function promptForOpponent(basePrompt: string, opponentProfile: OpponentProfile | null) {
+    return `${basePrompt}${opponentProfileToPrompt(opponentProfile)}`;
   }
 
-  function hasWarmQuestions(char: Character, count: number) {
+  function pickFallbackQuestions(char: Character, count: number, opponentProfile: OpponentProfile | null) {
+    return [...char.questions]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(count, char.questions.length))
+      .map((question) =>
+        opponentProfile
+          ? {
+              ...question,
+              id: `${question.id}-${opponentProfile.id}`,
+              text: `面对一个${opponentProfile.name}对手，${question.text}`,
+            }
+          : question,
+      );
+  }
+
+  function hasWarmQuestions(char: Character, count: number, opponentProfile: OpponentProfile | null = null) {
+    const prompt = promptForOpponent(questionPrompt, opponentProfile);
     return (
-      getCachedQuestionSetCount(char, questionPrompt, destinyPrompt, count) > 0 ||
-      inflightQuestionsRef.current.has(buildQuestionRequestKey(char, questionPrompt, destinyPrompt, count))
+      getCachedQuestionSetCount(char, prompt, destinyPrompt, count) > 0 ||
+      inflightQuestionsRef.current.has(buildQuestionRequestKey(char, prompt, destinyPrompt, count))
     );
   }
 
-  function pickQuestionCountForCharacter(char: Character) {
+  function pickQuestionCountForCharacter(char: Character, opponentProfile: OpponentProfile | null = null) {
     const preferred = randomQuestionCount();
     const alternate = preferred === 1 ? 2 : 1;
-    if (hasWarmQuestions(char, preferred)) return preferred;
-    if (hasWarmQuestions(char, alternate)) return alternate;
+    if (hasWarmQuestions(char, preferred, opponentProfile)) return preferred;
+    if (hasWarmQuestions(char, alternate, opponentProfile)) return alternate;
     return preferred;
   }
 
@@ -199,8 +230,23 @@ function App() {
 
   function chooseCharacter(nextCharacter: Character) {
     clearRevealTimer();
-    const count = pickQuestionCountForCharacter(nextCharacter);
     setCharacter(nextCharacter);
+    setSelectedOpponentProfile(null);
+    setSelectedAnswers([]);
+    setResult(null);
+    setCurrentDecisionId(null);
+    setIsRevealing(false);
+    setRevealQuote("");
+    setActiveQuestions([]);
+    setQuestionError("");
+    setQuestionStatus("idle");
+    setPage("opponentRead");
+  }
+
+  function beginDecisionWithOpponent(nextCharacter: Character, opponentProfile: OpponentProfile | null) {
+    const count = pickQuestionCountForCharacter(nextCharacter, opponentProfile);
+    setCharacter(nextCharacter);
+    setSelectedOpponentProfile(opponentProfile);
     setDestinyRoll(nextCharacter.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
@@ -209,43 +255,44 @@ function App() {
     setRevealQuote("");
     setActiveQuestions([]);
     setQuestionError("");
-    loadQuestionBank(nextCharacter, count);
+    loadQuestionBank(nextCharacter, count, opponentProfile);
     setPage("result");
   }
 
-  async function loadQuestionBank(nextCharacter: Character, count: number) {
-    const cachedQuestions = takeCachedQuestionSet(nextCharacter, questionPrompt, destinyPrompt, count);
+  async function loadQuestionBank(nextCharacter: Character, count: number, opponentProfile: OpponentProfile | null) {
+    const prompt = promptForOpponent(questionPrompt, opponentProfile);
+    const cachedQuestions = takeCachedQuestionSet(nextCharacter, prompt, destinyPrompt, count);
     if (cachedQuestions) {
       setActiveQuestions(cachedQuestions);
       setQuestionStatus("ready");
       setQuestionError("");
-      void generateAndCacheQuestions(nextCharacter, count, questionPrompt, destinyPrompt).catch(() => undefined);
+      void generateAndCacheQuestions(nextCharacter, count, prompt, destinyPrompt, opponentProfile).catch(() => undefined);
       return;
     }
 
     setQuestionStatus("loading");
     try {
-      const questions = await generateAndCacheQuestions(nextCharacter, count, questionPrompt, destinyPrompt);
-      rememberQuestionSet(nextCharacter, questionPrompt, destinyPrompt, questions);
+      const questions = await generateAndCacheQuestions(nextCharacter, count, prompt, destinyPrompt, opponentProfile);
+      rememberQuestionSet(nextCharacter, prompt, destinyPrompt, questions);
       setActiveQuestions(questions.slice(0, count));
       setQuestionStatus("ready");
       setQuestionError("");
     } catch (error) {
-      const fallbackQuestions = pickFallbackQuestions(nextCharacter, count);
-      storeQuestionSet(nextCharacter, questionPrompt, destinyPrompt, fallbackQuestions);
-      rememberQuestionSet(nextCharacter, questionPrompt, destinyPrompt, fallbackQuestions);
+      const fallbackQuestions = pickFallbackQuestions(nextCharacter, count, opponentProfile);
+      storeQuestionSet(nextCharacter, prompt, destinyPrompt, fallbackQuestions);
+      rememberQuestionSet(nextCharacter, prompt, destinyPrompt, fallbackQuestions);
       setActiveQuestions(fallbackQuestions);
       setQuestionStatus("fallback");
       setQuestionError(`${error instanceof Error ? error.message : "题库生成失败"}；已临时使用本地随机题库。`);
     }
   }
 
-  function generateAndCacheQuestions(nextCharacter: Character, count: number, prompt: string, destinyStylePrompt: string) {
+  function generateAndCacheQuestions(nextCharacter: Character, count: number, prompt: string, destinyStylePrompt: string, opponentProfile: OpponentProfile | null = null) {
     const requestKey = buildQuestionRequestKey(nextCharacter, prompt, destinyStylePrompt, count);
     const existing = inflightQuestionsRef.current.get(requestKey);
     if (existing) return existing;
 
-    const request = generateQuestions(nextCharacter, prompt, count, destinyStylePrompt).then((questions) => {
+    const request = generateQuestions(nextCharacter, prompt, count, destinyStylePrompt, undefined, opponentProfile).then((questions) => {
       const normalizedQuestions = questions.slice(0, count);
       storeQuestionSet(nextCharacter, prompt, destinyStylePrompt, normalizedQuestions);
       return normalizedQuestions;
@@ -282,8 +329,8 @@ function App() {
     setRevealQuote(pickLoadingQuote(character));
     clearRevealTimer();
     const delay = 1200 + Math.round(Math.random() * 600);
-    const nextResult = buildDecisionResult(character, answers, destinyRoll, forceEasterEgg);
-    const entry = createDecisionHistoryEntry(character, activeQuestions, answers, nextResult);
+    const nextResult = buildDecisionResult(character, answers, destinyRoll, forceEasterEgg, selectedOpponentProfile);
+    const entry = createDecisionHistoryEntry(character, activeQuestions, answers, nextResult, opponentProfileSnapshot(selectedOpponentProfile));
     revealTimerRef.current = setTimeout(() => {
       setResult(nextResult);
       setCurrentDecisionId(entry.id);
@@ -299,7 +346,7 @@ function App() {
       setPage("home");
       return;
     }
-    const count = pickQuestionCountForCharacter(character);
+    const count = pickQuestionCountForCharacter(character, selectedOpponentProfile);
     setDestinyRoll(character.decisionMode === "destiny" ? rollDestiny() : null);
     setSelectedAnswers([]);
     setResult(null);
@@ -308,7 +355,7 @@ function App() {
     setRevealQuote("");
     setActiveQuestions([]);
     setQuestionError("");
-    loadQuestionBank(character, count);
+    loadQuestionBank(character, count, selectedOpponentProfile);
   }
 
   function toggleEasterEgg() {
@@ -393,6 +440,7 @@ function App() {
     clearRevealTimer();
     setPage("home");
     setCharacter(null);
+    setSelectedOpponentProfile(null);
     setSelectedAnswers([]);
     setResult(null);
     setCurrentDecisionId(null);
@@ -480,9 +528,18 @@ function App() {
                 onToggleEasterEgg={toggleEasterEgg}
               />
             )}
+            {page === "opponentRead" && character && (
+              <OpponentReadPage
+                character={character}
+                onSelect={(opponentProfile) => beginDecisionWithOpponent(character, opponentProfile)}
+                onSkip={() => beginDecisionWithOpponent(character, null)}
+                onBack={goHome}
+              />
+            )}
             {page === "result" && character && (
               <ResultFlow
                 character={character}
+                opponentProfile={selectedOpponentProfile}
                 questions={activeQuestions}
                 questionStatus={questionStatus}
                 questionError={questionError}
@@ -685,6 +742,73 @@ function HomePage({
           className="rounded-full border border-zinc-800 bg-zinc-950/50 px-3 py-1.5 text-xs font-semibold text-zinc-500 transition hover:border-amber-500/60 hover:text-amber-200"
         >
           修改题库 Prompt
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function OpponentReadPage({
+  character,
+  onSelect,
+  onSkip,
+  onBack,
+}: {
+  character: Character;
+  onSelect: (opponentProfile: OpponentProfile) => void;
+  onSkip: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <section className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="rounded-3xl border border-amber-500/35 bg-zinc-950/90 p-4 shadow-2xl">
+        <div className="flex items-center gap-3">
+          <CharacterAvatar character={character} size="small" />
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-500">Read Opponent</p>
+            <h1 className="mt-1 text-2xl font-black text-amber-100">这手主要对手像谁？</h1>
+            <p className="mt-1 text-sm leading-5 text-zinc-400">
+              当前人格：<span className="font-bold text-amber-200">{character.name}</span>。不用准确，凭第一感觉选一个。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {opponentProfiles.map((profile) => (
+          <button
+            key={profile.id}
+            onClick={() => onSelect(profile)}
+            className="group rounded-2xl border border-zinc-800 bg-zinc-950/86 p-4 text-left shadow-2xl transition hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-400/5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xl font-black text-amber-100">{profile.name}</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-300">{profile.description}</p>
+              </div>
+              <span className="shrink-0 rounded-full border border-emerald-400/35 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200">
+                {profile.shortName}
+              </span>
+            </div>
+            <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-400/5 p-3 text-xs font-bold leading-5 text-amber-100/85">
+              影响：{profile.strategyHint}
+            </p>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={onBack}
+          className="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-bold text-zinc-300 transition hover:border-amber-500 hover:text-amber-100"
+        >
+          返回首页
+        </button>
+        <button
+          onClick={onSkip}
+          className="rounded-xl border border-amber-400/50 bg-amber-400/10 px-4 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-zinc-950"
+        >
+          跳过，直接开局
         </button>
       </div>
     </section>
@@ -1067,6 +1191,11 @@ function HistoryRow({ entry }: { entry: DecisionHistoryEntry }) {
           <span className={feedbackClass}>{feedbackLabel}</span>
         </div>
       </div>
+      {entry.opponentProfile && (
+        <p className="mt-2 inline-flex rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-xs font-black text-emerald-200">
+          对手：{entry.opponentProfile.name}
+        </p>
+      )}
       {firstQuestion && (
         <p className="mt-2 line-clamp-2 text-sm leading-5 text-zinc-400">
           {firstQuestion.text}
@@ -1680,6 +1809,7 @@ function PromptAdminPage({
 
 function ResultFlow({
   character,
+  opponentProfile,
   questions,
   questionStatus,
   questionError,
@@ -1699,6 +1829,7 @@ function ResultFlow({
   onFeedback,
 }: {
   character: Character;
+  opponentProfile: OpponentProfile | null;
   questions: Question[];
   questionStatus: "idle" | "loading" | "ready" | "fallback";
   questionError: string;
@@ -1733,6 +1864,11 @@ function ResultFlow({
                   <span className="text-sm text-amber-400">{character.archetype}</span>
                 </div>
                 <p className="mt-0.5 text-sm leading-5 text-zinc-400">{character.description}</p>
+                {opponentProfile && (
+                  <p className="mt-2 inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200">
+                    对手读法：{opponentProfile.name}
+                  </p>
+                )}
                 {character.stats ? (
                   <div className="mt-2 flex flex-wrap gap-4">
                     <CompactStat label="鸡" value={character.stats.chicken} />

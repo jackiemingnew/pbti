@@ -1,5 +1,5 @@
 import { normalizeQuestions } from "./questionFormat";
-import type { Character, PokerScenario, Question } from "../types";
+import type { Character, OpponentProfile, PokerScenario, Question } from "../types";
 
 type QuestionApiResponse = {
   questions?: Question[];
@@ -21,15 +21,16 @@ export async function generateQuestions(
   questionCount: number,
   destinyPrompt?: string,
   scenario?: PokerScenario,
+  opponentProfile?: OpponentProfile | null,
 ): Promise<Question[]> {
-  return requestServerQuestions(character, prompt, questionCount, destinyPrompt, scenario);
+  return requestServerQuestions(character, prompt, questionCount, destinyPrompt, scenario, opponentProfile);
 }
 
-async function requestServerQuestions(character: Character, prompt: string, questionCount: number, destinyPrompt?: string, scenario?: PokerScenario) {
+async function requestServerQuestions(character: Character, prompt: string, questionCount: number, destinyPrompt?: string, scenario?: PokerScenario, opponentProfile?: OpponentProfile | null) {
   const response = await fetch("/api/generate-questions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ character, scenario, prompt, questionCount, destinyPrompt }),
+    body: JSON.stringify({ character, scenario, prompt, questionCount, destinyPrompt, opponentProfile }),
   });
 
   const rawBody = await response.text().catch(() => "");

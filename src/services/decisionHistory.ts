@@ -1,4 +1,4 @@
-import type { Answer, Character, DecisionFeedback, DecisionHistoryEntry, DecisionResult, Question } from "../types";
+import type { Answer, Character, DecisionFeedback, DecisionHistoryEntry, DecisionResult, OpponentProfile, Question } from "../types";
 
 const HISTORY_STORAGE_KEY = "pbti-decision-history";
 const MAX_HISTORY_ITEMS = 200;
@@ -13,7 +13,7 @@ export function loadDecisionHistory(): DecisionHistoryEntry[] {
   }
 }
 
-export function createDecisionHistoryEntry(character: Character, questions: Question[], answers: Answer[], result: DecisionResult): DecisionHistoryEntry {
+export function createDecisionHistoryEntry(character: Character, questions: Question[], answers: Answer[], result: DecisionResult, opponentProfile?: Pick<OpponentProfile, "id" | "name" | "shortName" | "description" | "strategyHint" | "resultBias">): DecisionHistoryEntry {
   return {
     id: `decision-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     createdAt: new Date().toISOString(),
@@ -37,6 +37,7 @@ export function createDecisionHistoryEntry(character: Character, questions: Ques
           : undefined,
       };
     }),
+    opponentProfile,
     result,
   };
 }

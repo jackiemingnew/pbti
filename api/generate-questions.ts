@@ -1,5 +1,5 @@
 import { generateQuestionBankFromOpenAI, getQuestionBankErrorStatus, toQuestionBankErrorPayload } from "../server/openaiQuestions.js";
-import type { Character, PokerScenario } from "../src/types.js";
+import type { Character, OpponentProfile, PokerScenario } from "../src/types.js";
 
 export const config = {
   maxDuration: 30,
@@ -24,6 +24,7 @@ type QuestionRequestBody = {
   prompt?: string;
   questionCount?: number;
   destinyPrompt?: string;
+  opponentProfile?: OpponentProfile | null;
 };
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
@@ -61,6 +62,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       scenario: body.scenario,
       questionCount: body.questionCount,
       destinyPrompt: body.destinyPrompt,
+      opponentProfile: body.opponentProfile,
     });
     response.status(200).json({ questions });
   } catch (error) {
