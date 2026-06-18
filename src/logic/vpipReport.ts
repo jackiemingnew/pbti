@@ -33,7 +33,7 @@ export type VpipSessionReport = {
 };
 
 const latePositions = new Set<VpipPosition>(["CO", "BTN"]);
-const earlyPositions = new Set<VpipPosition>(["UTG", "MP"]);
+const earlyPositions = new Set<VpipPosition>(["UTG", "UTG+1", "UTG+2", "UTG+3", "LJ", "MP"]);
 
 export function buildVpipSessionReport(records: VpipHandRecord[], stats: VpipStats): VpipSessionReport {
   const scores = derivePbtiScoresFromVpip(records, stats);

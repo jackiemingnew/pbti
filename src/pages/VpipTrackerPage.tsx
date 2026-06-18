@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
 import {
   calculateVpipStats,
+  getPositionsForTableSize,
   getVpipAdvice,
   VPIP_ACTIONS,
-  VPIP_POSITIONS,
+  VPIP_TABLE_SIZES,
   type VpipAction,
   type VpipHandRecord,
   type VpipOutcome,
   type VpipPosition,
   type VpipStats,
+  type VpipTableSize,
 } from "../logic/vpipTracker";
 import { buildVpipSessionReport, type VpipAchievement, type VpipSessionReport } from "../logic/vpipReport";
 import { getPbtiProfile } from "../data/pbtiProfiles";
@@ -21,6 +23,10 @@ import {
 
 const positionLabels: Record<VpipPosition, string> = {
   UTG: "UTG",
+  "UTG+1": "UTG+1",
+  "UTG+2": "UTG+2",
+  "UTG+3": "UTG+3",
+  LJ: "LJ / Lojack",
   MP: "MP",
   HJ: "HJ",
   CO: "CO / Cutoff",
@@ -91,6 +97,7 @@ const achievementToneClass: Record<VpipAchievement["tone"], string> = {
 export function VpipTrackerPage({ onHome }: { onHome: () => void }) {
   const [records, setRecords] = useState<VpipHandRecord[]>(() => loadVpipRecords());
   const [sessionId, setSessionId] = useState(() => getCurrentVpipSessionId());
+  const [tableSize, setTableSize] = useState<VpipTableSize>(9);
   const [selectedPosition, setSelectedPosition] = useState<VpipPosition | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<VpipOutcome>("none");
   const [notice, setNotice] = useState("先选位置，再记录这一手的翻前行为。");
@@ -104,6 +111,8 @@ export function VpipTrackerPage({ onHome }: { onHome: () => void }) {
   const advice = useMemo(() => getVpipAdvice(stats), [stats]);
   const report = useMemo(() => buildVpipSessionReport(sessionRecords, stats), [sessionRecords, stats]);
   const sessionStartedAt = sessionStartTime(sessionId, sessionRecords);
+  const tablePositions = useMemo(() => getPositionsForTableSize(tableSize), [tableSize]);
+  const tableSeatLayout = useMemo(() => getTableSeatLayout(tablePositions), [tablePositions]);
 
   function persist(nextRecords: VpipHandRecord[]) {
     setRecords(nextRecords);
@@ -118,6 +127,7 @@ export function VpipTrackerPage({ onHome }: { onHome: () => void }) {
     const nextRecord: VpipHandRecord = {
       id: `vpip-hand-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       sessionId,
+      tableSize,
       position: selectedPosition,
       action,
       outcome: selectedOutcome,
@@ -158,16 +168,24 @@ export function VpipTrackerPage({ onHome }: { onHome: () => void }) {
     const nextSessionId = createNewVpipSession();
     setSessionId(nextSessionId);
     setSelectedPosition(null);
+    setTableSize(9);
     setSelectedOutcome("none");
     setShowReport(false);
     setNotice("新 Session 已开始，请选择第一手的位置。");
   }
 
   function selectNextPosition() {
-    const currentIndex = selectedPosition ? VPIP_POSITIONS.indexOf(selectedPosition) : -1;
-    const nextPosition = VPIP_POSITIONS[(currentIndex + 1) % VPIP_POSITIONS.length];
+    const currentIndex = selectedPosition ? tablePositions.indexOf(selectedPosition) : -1;
+    const nextPosition = tablePositions[(currentIndex + 1) % tablePositions.length];
     setSelectedPosition(nextPosition);
     setNotice(`已切换到 ${positionLabels[nextPosition]}。`);
+  }
+
+  function changeTableSize(nextTableSize: VpipTableSize) {
+    const nextPositions = getPositionsForTableSize(nextTableSize);
+    setTableSize(nextTableSize);
+    setSelectedPosition((current) => (current && nextPositions.includes(current) ? current : null));
+    setNotice(`已切换为 ${nextTableSize} 人桌，请点选自己的位置。`);
   }
 
   const summaryMetrics = [
@@ -226,76 +244,121 @@ export function VpipTrackerPage({ onHome }: { onHome: () => void }) {
 
       {showReport && sessionRecords.length > 0 && <VpipSessionReportCard report={report} stats={stats} startedAt={sessionStartedAt} />}
 
-      <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950/88 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-500">Step 1</p>
-              <h2 className="mt-1 text-xl font-black text-amber-100">选择位置</h2>
-            </div>
-            <button onClick={selectNextPosition} className="rounded-lg border border-amber-500/45 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400 hover:text-zinc-950">
-              下一位置
-            </button>
+      <div className="overflow-hidden rounded-3xl border border-amber-500/25 bg-zinc-950/90 shadow-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-zinc-800 bg-black/20 p-4 sm:p-5">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-500">Table Recorder</p>
+            <h2 className="mt-1 text-2xl font-black text-amber-100">牌桌式 VPIP 记录</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">选择牌桌人数，点自己的座位，再点本手翻前行为。</p>
           </div>
-          <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7 lg:grid-cols-4">
-            {VPIP_POSITIONS.map((position) => {
-              const selected = selectedPosition === position;
+          <div className="flex flex-wrap gap-2">
+            {VPIP_TABLE_SIZES.map((size) => (
+              <button
+                key={size}
+                onClick={() => changeTableSize(size)}
+                className={`rounded-xl border px-3 py-2 text-sm font-black transition ${
+                  tableSize === size
+                    ? "border-amber-200 bg-amber-400 text-zinc-950 shadow-gold"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-amber-400 hover:text-amber-100"
+                }`}
+              >
+                {size} 人
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-0 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className="relative min-h-[390px] p-3 sm:min-h-[470px] sm:p-6">
+            <div className="absolute inset-x-[7%] top-[18%] h-[58%] rounded-[50%] border-[10px] border-emerald-500/10 bg-[radial-gradient(circle_at_50%_50%,rgba(20,184,166,0.13),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.9),rgba(9,9,11,0.96))] shadow-[inset_0_0_80px_rgba(0,0,0,0.7)] sm:border-[14px]" />
+            <div className="absolute inset-x-[16%] top-[31%] rounded-3xl border border-amber-400/10 bg-black/24 px-4 py-5 text-center sm:inset-x-[25%] sm:top-[34%]">
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-zinc-500">{tableSize} Max Live Table</p>
+              <p className="mt-2 text-2xl font-black text-amber-100">
+                {selectedPosition ? positionLabels[selectedPosition] : "点选你的座位"}
+              </p>
+              <p className="mt-2 text-xs font-bold text-zinc-500">
+                {selectedPosition ? "然后在右侧记录本手行动" : "支持 7～11 人桌"}
+              </p>
+            </div>
+
+            {tableSeatLayout.map((seat) => {
+              const selected = selectedPosition === seat.position;
+              const seatStats = stats.byPosition[seat.position];
               return (
                 <button
-                  key={position}
+                  key={`${seat.position}-${seat.seatIndex}`}
                   onClick={() => {
-                    setSelectedPosition(position);
-                    setNotice(`已选择 ${positionLabels[position]}。`);
+                    setSelectedPosition(seat.position);
+                    setNotice(`已选择 ${positionLabels[seat.position]}（${tableSize} 人桌）。`);
                   }}
-                  className={`min-h-16 rounded-xl border px-2 py-3 text-sm font-black transition ${
+                  style={{ left: `${seat.x}%`, top: `${seat.y}%` }}
+                  className={`absolute z-10 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-4 text-center transition hover:scale-105 active:scale-95 sm:h-20 sm:w-20 ${
                     selected
-                      ? "border-amber-200 bg-amber-400 text-zinc-950 shadow-gold"
-                      : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-amber-500 hover:text-amber-100"
+                      ? "border-amber-300 bg-amber-400 text-zinc-950 shadow-gold"
+                      : "border-zinc-700 bg-zinc-950 text-zinc-200 hover:border-emerald-400 hover:text-emerald-100"
                   }`}
+                  aria-label={`选择 ${positionLabels[seat.position]}`}
                 >
-                  {position}
-                  {(position === "CO" || position === "BTN") && (
-                    <span className="mt-1 block text-[10px] font-bold opacity-70">{position === "CO" ? "Cutoff" : "Dealer"}</span>
-                  )}
+                  <span className="text-sm font-black sm:text-base">{seat.position}</span>
+                  <span className={`mt-0.5 text-[10px] font-bold ${selected ? "text-zinc-800" : "text-zinc-500"}`}>
+                    {seatStats.totalHands ? `${seatStats.vpipPercent.toFixed(0)}%` : "0手"}
+                  </span>
                 </button>
               );
             })}
           </div>
-        </div>
 
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950/88 p-4 sm:p-5">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-500">Step 2</p>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="mt-1 text-xl font-black text-amber-100">记录翻前行为</h2>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(outcomeConfig) as VpipOutcome[]).map((outcome) => (
+          <div className="border-t border-zinc-800 p-4 sm:p-5 lg:border-l lg:border-t-0">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-500">Action</p>
+                <h3 className="mt-1 text-xl font-black text-amber-100">采取行动</h3>
+              </div>
+              <button onClick={selectNextPosition} className="rounded-lg border border-amber-500/45 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400 hover:text-zinc-950">
+                下一位置
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-zinc-800 bg-black/25 p-3">
+              <p className="text-xs font-black tracking-[0.18em] text-zinc-500">本手结果</p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {(Object.keys(outcomeConfig) as VpipOutcome[]).map((outcome) => (
+                  <button
+                    key={outcome}
+                    onClick={() => setSelectedOutcome(outcome)}
+                    className={`rounded-xl border px-2 py-2 text-xs font-black transition ${
+                      selectedOutcome === outcome
+                        ? "border-amber-200 bg-amber-400 text-zinc-950"
+                        : outcomeConfig[outcome].buttonClass
+                    }`}
+                  >
+                    {outcomeConfig[outcome].shortLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {VPIP_ACTIONS.map((action) => (
                 <button
-                  key={outcome}
-                  onClick={() => setSelectedOutcome(outcome)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
-                    selectedOutcome === outcome
-                      ? "border-amber-200 bg-amber-400 text-zinc-950"
-                      : outcomeConfig[outcome].buttonClass
-                  }`}
+                  key={action}
+                  onClick={() => recordAction(action)}
+                  className={`min-h-24 rounded-2xl border p-3 text-left transition active:scale-[0.98] ${actionConfig[action].buttonClass}`}
                 >
-                  {outcomeConfig[outcome].label}
+                  <span className="block text-xl font-black">{actionConfig[action].shortLabel}</span>
+                  <span className="mt-2 block text-xs font-semibold opacity-70">
+                    {action === "Call" ? "计入 VPIP" : action === "Raise" ? "计入 VPIP + PFR" : "不计入 VPIP"}
+                  </span>
                 </button>
               ))}
             </div>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {VPIP_ACTIONS.map((action) => (
-              <button
-                key={action}
-                onClick={() => recordAction(action)}
-                className={`min-h-24 rounded-2xl border p-3 text-left transition active:scale-[0.98] ${actionConfig[action].buttonClass}`}
-              >
-                <span className="block text-lg font-black">{actionConfig[action].label}</span>
-                <span className="mt-2 block text-xs font-semibold opacity-70">
-                  {action === "Call" ? "计入 VPIP" : action === "Raise" ? "计入 VPIP + PFR" : "不计入 VPIP"}
-                </span>
-              </button>
-            ))}
+
+            <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3">
+              <p className="text-xs font-black text-amber-200">当前选择</p>
+              <p className="mt-1 text-sm leading-6 text-zinc-300">
+                {tableSize} 人桌 · {selectedPosition ? positionLabels[selectedPosition] : "尚未选择位置"} · {outcomeConfig[selectedOutcome].label}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -389,7 +452,7 @@ export function VpipTrackerPage({ onHome }: { onHome: () => void }) {
               </tr>
             </thead>
             <tbody>
-              {VPIP_POSITIONS.map((position) => {
+              {tablePositions.map((position) => {
                 const item = stats.byPosition[position];
                 return (
                   <tr key={position} className="border-b border-zinc-900 text-zinc-300">
@@ -420,6 +483,7 @@ export function VpipTrackerPage({ onHome }: { onHome: () => void }) {
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-black text-zinc-600">#{stats.totalHands - index}</span>
                     <span className="font-black text-amber-200">{record.position}</span>
+                    {record.tableSize && <span className="text-xs font-bold text-zinc-600">{record.tableSize}人</span>}
                     <span className="text-sm font-bold text-zinc-200">{actionConfig[record.action].shortLabel}</span>
                     <span className={`text-xs font-black ${outcomeConfig[record.outcome || "none"].textClass}`}>
                       {outcomeConfig[record.outcome || "none"].shortLabel}
@@ -558,6 +622,19 @@ function ScorePill({ label, value, helper }: { label: string; value: number; hel
       <p className="mt-2 text-xs font-bold text-zinc-500">{helper}</p>
     </div>
   );
+}
+
+function getTableSeatLayout(positions: VpipPosition[]) {
+  return positions.map((position, index) => {
+    const angle = -125 + (360 / positions.length) * index;
+    const radians = (angle * Math.PI) / 180;
+    return {
+      position,
+      seatIndex: index,
+      x: 50 + Math.cos(radians) * 43,
+      y: 50 + Math.sin(radians) * 38,
+    };
+  });
 }
 
 function sessionStartTime(sessionId: string, records: VpipHandRecord[]) {

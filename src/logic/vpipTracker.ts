@@ -1,4 +1,5 @@
-export type VpipPosition = "UTG" | "MP" | "HJ" | "CO" | "BTN" | "SB" | "BB";
+export type VpipPosition = "UTG" | "UTG+1" | "UTG+2" | "UTG+3" | "LJ" | "MP" | "HJ" | "CO" | "BTN" | "SB" | "BB";
+export type VpipTableSize = 7 | 8 | 9 | 10 | 11;
 
 export type VpipAction = "Fold" | "Check" | "Call" | "Raise";
 export type VpipOutcome = "win" | "loss" | "none";
@@ -6,6 +7,7 @@ export type VpipOutcome = "win" | "loss" | "none";
 export type VpipHandRecord = {
   id: string;
   sessionId: string;
+  tableSize?: VpipTableSize;
   position: VpipPosition;
   action: VpipAction;
   outcome?: VpipOutcome;
@@ -56,8 +58,21 @@ export type VpipStats = {
   tightestPosition?: VpipPosition;
 };
 
-export const VPIP_POSITIONS: VpipPosition[] = ["UTG", "MP", "HJ", "CO", "BTN", "SB", "BB"];
+export const VPIP_POSITIONS: VpipPosition[] = ["UTG", "UTG+1", "UTG+2", "UTG+3", "LJ", "MP", "HJ", "CO", "BTN", "SB", "BB"];
+export const VPIP_TABLE_SIZES: VpipTableSize[] = [7, 8, 9, 10, 11];
 export const VPIP_ACTIONS: VpipAction[] = ["Fold", "Check", "Call", "Raise"];
+
+const positionsByTableSize: Record<VpipTableSize, VpipPosition[]> = {
+  7: ["UTG", "MP", "HJ", "CO", "BTN", "SB", "BB"],
+  8: ["UTG", "UTG+1", "MP", "HJ", "CO", "BTN", "SB", "BB"],
+  9: ["UTG", "UTG+1", "UTG+2", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
+  10: ["UTG", "UTG+1", "UTG+2", "LJ", "MP", "HJ", "CO", "BTN", "SB", "BB"],
+  11: ["UTG", "UTG+1", "UTG+2", "UTG+3", "LJ", "MP", "HJ", "CO", "BTN", "SB", "BB"],
+};
+
+export function getPositionsForTableSize(tableSize: VpipTableSize) {
+  return positionsByTableSize[tableSize];
+}
 
 export function isVpipAction(action: VpipAction) {
   return action === "Call" || action === "Raise";
@@ -165,7 +180,7 @@ export function getVpipAdvice(stats: VpipStats) {
     advice.push("当前 VPIP 偏紧。纪律很好，但也可能错过后位攻击弱玩家的机会。");
   }
 
-  const earlyPositionLoose = (["UTG", "MP"] as const).some((position) => {
+  const earlyPositionLoose = (["UTG", "UTG+1", "UTG+2", "UTG+3", "LJ", "MP"] as const).some((position) => {
     const positionStats = stats.byPosition[position];
     return positionStats.totalHands >= 5 && positionStats.vpipPercent > 20;
   });

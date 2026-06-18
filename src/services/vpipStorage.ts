@@ -1,11 +1,12 @@
-import type { VpipAction, VpipHandRecord, VpipOutcome, VpipPosition } from "../logic/vpipTracker";
+import type { VpipAction, VpipHandRecord, VpipOutcome, VpipPosition, VpipTableSize } from "../logic/vpipTracker";
 
 const VPIP_RECORDS_KEY = "pbti-vpip-records";
 const VPIP_CURRENT_SESSION_KEY = "pbti-vpip-current-session";
 
-const positions = new Set<VpipPosition>(["UTG", "MP", "HJ", "CO", "BTN", "SB", "BB"]);
+const positions = new Set<VpipPosition>(["UTG", "UTG+1", "UTG+2", "UTG+3", "LJ", "MP", "HJ", "CO", "BTN", "SB", "BB"]);
 const actions = new Set<VpipAction>(["Fold", "Check", "Call", "Raise"]);
 const outcomes = new Set<VpipOutcome>(["win", "loss", "none"]);
+const tableSizes = new Set<VpipTableSize>([7, 8, 9, 10, 11]);
 
 export function loadVpipRecords(): VpipHandRecord[] {
   if (typeof window === "undefined") return [];
@@ -53,6 +54,7 @@ function isVpipHandRecord(value: unknown): value is VpipHandRecord {
     typeof record.id === "string" &&
       typeof record.sessionId === "string" &&
       positions.has(record.position as VpipPosition) &&
+      (!record.tableSize || tableSizes.has(record.tableSize as VpipTableSize)) &&
       actions.has(record.action as VpipAction) &&
       (!record.outcome || outcomes.has(record.outcome as VpipOutcome)) &&
       typeof record.timestamp === "number" &&
