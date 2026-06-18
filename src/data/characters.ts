@@ -49,7 +49,7 @@ const barrelAnswers = [
 export const characters: Character[] = [
   {
     id: "king-chow",
-    name: "发哥 AA",
+    name: "发哥控桌",
     archetype: "赌神控场者",
     stats: { chicken: 7, money: 8, skill: 8 },
     description: "他不一定每手都开火，但一旦决定施压，筹码、气场和牌理会一起进池。",
@@ -87,7 +87,7 @@ export const characters: Character[] = [
   },
   {
     id: "bluff-assassin",
-    name: "鸡王 TomDwan",
+    name: "三街鸡王",
     archetype: "三条街小说家",
     stats: { chicken: 10, money: 4, skill: 7 },
     description: "他的鸡瘾值接近爆表，擅长把空气写成连续三街的长篇小说。",
@@ -121,7 +121,7 @@ export const characters: Character[] = [
   },
   {
     id: "boss-whale",
-    name: "老板板板",
+    name: "老板买票",
     archetype: "剧情投资人",
     stats: { chicken: 6, money: 10, skill: 3 },
     description: "钞能力拉满，牌理可以不懂，但这手牌必须有节目效果。",
@@ -164,7 +164,7 @@ export const characters: Character[] = [
   },
   {
     id: "destiny-fool",
-    name: "天命人悟空",
+    name: "悟空改命",
     archetype: "三界之外",
     decisionMode: "destiny",
     description: "他没有鸡、钱、术基础值。每手先掷出天命随机数，再用弱智吧式问题给命运一点离谱解释。",

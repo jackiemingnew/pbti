@@ -590,11 +590,11 @@ function HomePage({
 
   return (
     <section className="w-full space-y-5 sm:space-y-8">
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(132px,0.86fr)] items-start gap-3 sm:gap-5">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(136px,0.72fr)] items-start gap-3 sm:gap-5">
         <div className="min-w-0">
           <p className="text-[10px] font-black tracking-[0.18em] text-amber-500 sm:text-sm">Poker Behavior Type Indicator</p>
-          <h1 className="mt-2 text-[2rem] font-black leading-[1.05] text-amber-100 sm:text-5xl">PBTI：牌桌行为人格测试</h1>
-          <p className="mt-3 text-sm font-bold leading-6 text-zinc-300 sm:text-lg sm:leading-8">鸡稳 / 豪谨 / 术风，看看你在牌桌上到底是哪种行为人格。</p>
+          <h1 className="mt-2 text-[1.85rem] font-black leading-[1.08] text-amber-100 sm:text-5xl">PBTI：牌桌行为人格测试</h1>
+          <p className="mt-3 text-sm font-bold leading-6 text-zinc-300 sm:text-lg sm:leading-8">线下打牌时，给自己戴一副人格面具。</p>
           <blockquote className="mt-3 border-l-2 border-amber-400/70 pl-3 text-xs font-bold leading-5 text-amber-100/85 sm:mt-5 sm:text-base sm:leading-6">
             “{homeQuote}”
           </blockquote>
@@ -611,7 +611,7 @@ function HomePage({
           </button>
         </div>
 
-        <div className="relative w-full rounded-2xl border border-amber-500/45 bg-zinc-950/82 p-2 shadow-2xl sm:p-4">
+        <div className="relative w-full rounded-2xl border border-amber-500/45 bg-zinc-950/82 p-2.5 shadow-2xl sm:p-4">
           <div className="relative z-10">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -625,16 +625,16 @@ function HomePage({
                 随机
               </button>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="mt-3 space-y-2">
               {characters.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => onSelectCharacter(item)}
-                  className="group min-w-0 rounded-xl border border-amber-500/30 bg-zinc-900/82 p-2 text-left transition hover:-translate-y-1 hover:border-amber-300"
+                  className="group flex w-full min-w-0 items-center gap-2 rounded-xl border border-amber-500/30 bg-zinc-900/82 p-2 text-left transition hover:-translate-y-0.5 hover:border-amber-300"
                 >
                   <CharacterAvatar character={item} size="mini" />
-                  <div className="mt-2 min-w-0">
-                    <p className="truncate text-xs font-black text-amber-100 sm:text-sm">{item.name}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black leading-4 text-amber-100 sm:text-sm">{item.name}</p>
                     <p className="truncate text-[10px] text-amber-400">{item.archetype}</p>
                   </div>
                 </button>
@@ -644,17 +644,19 @@ function HomePage({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid gap-2.5 sm:gap-3">
         {toolCards.map((card) => (
           <button
             key={card.title}
             onClick={card.onClick}
-            className={`group min-w-0 rounded-2xl border bg-zinc-950/85 p-3 text-left shadow-2xl transition hover:-translate-y-0.5 sm:p-4 ${toolToneClass[card.tone]}`}
+            className={`group flex min-w-0 items-center justify-between gap-3 rounded-2xl border bg-zinc-950/85 p-3 text-left shadow-2xl transition hover:-translate-y-0.5 sm:p-4 ${toolToneClass[card.tone]}`}
           >
-            <span className="block truncate text-[10px] font-black uppercase tracking-[0.16em] opacity-80 sm:text-xs">{card.eyebrow}</span>
-            <span className="mt-1 block text-base font-black text-amber-100 sm:text-2xl">{card.title}</span>
-            <span className="mt-2 line-clamp-3 block text-xs leading-5 text-zinc-400 sm:text-sm sm:leading-6">{card.description}</span>
-            <span className="mt-3 inline-flex rounded-lg border border-current px-3 py-1.5 text-xs font-black transition group-hover:bg-current">
+            <span className="min-w-0">
+              <span className="block truncate text-[10px] font-black uppercase tracking-[0.16em] opacity-80 sm:text-xs">{card.eyebrow}</span>
+              <span className="mt-1 block text-xl font-black text-amber-100 sm:text-2xl">{card.title}</span>
+              <span className="mt-1 block text-xs leading-5 text-zinc-400 sm:text-sm sm:leading-6">{card.description}</span>
+            </span>
+            <span className="shrink-0 rounded-lg border border-current px-3 py-1.5 text-xs font-black transition group-hover:bg-current">
               <span className="group-hover:text-zinc-950">{card.action}</span>
             </span>
           </button>
