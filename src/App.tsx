@@ -11,6 +11,8 @@ import { getPbtiProfile, pbtiProfiles, type PbtiProfile } from "./data/pbtiProfi
 import { generateDecision } from "./logic/decisionEngine";
 import { classifyPbtiProfile } from "./logic/pbtiClassifier";
 import { analyzeShowdown, cardsToText, inferGameType, parseCards } from "./logic/pokerHandEvaluator";
+import { buildVpipSessionReport, filterVpipRecordsForLocalDay } from "./logic/vpipReport";
+import { calculateVpipStats } from "./logic/vpipTracker";
 import { VpipTrackerPage } from "./pages/VpipTrackerPage";
 import {
   buildQuestionRequestKey,
@@ -27,6 +29,7 @@ import {
   saveDecisionEntry,
   updateDecisionFeedback,
 } from "./services/decisionHistory";
+import { loadVpipRecords } from "./services/vpipStorage";
 import { recognizePokerPhoto } from "./services/photoRecognitionApi";
 import type {
   Answer,
@@ -754,6 +757,12 @@ function SummaryPage({
   onOpenProfiles: () => void;
 }) {
   const stats = useMemo(() => summarizeHistory(entries), [entries]);
+  const vpipRecords = useMemo(() => loadVpipRecords(), []);
+  const vpipStats = useMemo(() => calculateVpipStats(vpipRecords), [vpipRecords]);
+  const vpipReport = useMemo(() => buildVpipSessionReport(vpipRecords, vpipStats), [vpipRecords, vpipStats]);
+  const todayVpipRecords = useMemo(() => filterVpipRecordsForLocalDay(vpipRecords), [vpipRecords]);
+  const todayVpipStats = useMemo(() => calculateVpipStats(todayVpipRecords), [todayVpipRecords]);
+  const todayVpipReport = useMemo(() => buildVpipSessionReport(todayVpipRecords, todayVpipStats), [todayVpipRecords, todayVpipStats]);
   const classification = useMemo(
     () =>
       classifyPbtiProfile({
@@ -837,6 +846,72 @@ function SummaryPage({
           </div>
 
           <PbtiProfileDetail profile={getPbtiProfile(classification.code)} classification={classification} totalHands={stats.total} />
+
+          {vpipStats.totalHands > 0 && (
+            <div className="rounded-3xl border border-fuchsia-500/25 bg-zinc-950/85 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.26em] text-fuchsia-300">Live VPIP Profile</p>
+                  <h2 className="mt-2 text-2xl font-black text-amber-100">线下 VPIP 长期画像</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+                    这里基于 VPIP 记录器的全部本地数据，和上方人格问答画像分开统计。一个看你怎么想，一个看你实际怎么点。
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-right">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{getPbtiProfile(vpipReport.classification.code).alias}</p>
+                  <p className="mt-1 text-xl font-black text-amber-100">
+                    {vpipReport.classification.code}｜{vpipReport.classification.title}
+                  </p>
+                </div>
+              </div>
+
+              {todayVpipStats.totalHands > 0 && (
+                <div className="mt-5 rounded-3xl border border-amber-400/35 bg-[radial-gradient(circle_at_10%_0%,rgba(251,191,36,0.18),transparent_35%),rgba(24,24,27,0.72)] p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-300">Daily Status</p>
+                      <h3 className="mt-2 text-2xl font-black text-amber-100">
+                        今日状态：{todayVpipReport.tableStatus.title}
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">{todayVpipReport.tableStatus.description}</p>
+                    </div>
+                    <div className="rounded-2xl border border-zinc-700 bg-black/25 px-4 py-3 text-right">
+                      <p className="text-xs font-black text-zinc-500">今日样本</p>
+                      <p className="mt-1 text-2xl font-black text-amber-100">{todayVpipStats.totalHands} 手</p>
+                      <p className="mt-1 text-xs font-bold text-zinc-500">
+                        VPIP {todayVpipStats.vpipPercent.toFixed(1)}% · PFR {todayVpipStats.pfrPercent.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <SummaryMetric label="VPIP 手数" value={String(vpipStats.totalHands)} helper="全部线下记录" />
+                <SummaryMetric label="VPIP" value={`${vpipStats.vpipPercent.toFixed(1)}%`} helper={`${vpipStats.vpipHands} 手主动入池`} />
+                <SummaryMetric label="PFR" value={`${vpipStats.pfrPercent.toFixed(1)}%`} helper={`${vpipStats.pfrHands} 手加注`} />
+                <SummaryMetric label="胜率" value={vpipStats.resolvedHands ? `${vpipStats.winRate.toFixed(1)}%` : "未标记"} helper={`${vpipStats.winHands} 赢 / ${vpipStats.lossHands} 输`} />
+                <SummaryMetric label="长期人格" value={vpipReport.classification.title} helper={vpipReport.classification.confidenceLabel} />
+              </div>
+
+              <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-4">
+                  <h3 className="text-lg font-black text-amber-100">打法判词</h3>
+                  <p className="mt-3 text-sm leading-6 text-zinc-300">{vpipReport.verdict}</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-4">
+                  <h3 className="text-lg font-black text-amber-100">长期成就墙</h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {vpipReport.achievements.map((achievement) => (
+                      <span key={achievement.id} className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-100">
+                        {achievement.title}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
             <div className="rounded-3xl border border-zinc-800 bg-zinc-950/85 p-5">

@@ -1,12 +1,14 @@
 export type VpipPosition = "UTG" | "MP" | "HJ" | "CO" | "BTN" | "SB" | "BB";
 
 export type VpipAction = "Fold" | "Check" | "Call" | "Raise";
+export type VpipOutcome = "win" | "loss" | "none";
 
 export type VpipHandRecord = {
   id: string;
   sessionId: string;
   position: VpipPosition;
   action: VpipAction;
+  outcome?: VpipOutcome;
   timestamp: number;
 };
 
@@ -23,6 +25,10 @@ export type PositionStats = {
   raisePercent: number;
   foldHands: number;
   checkHands: number;
+  winHands: number;
+  lossHands: number;
+  noneHands: number;
+  winRate: number;
 };
 
 export type VpipStats = {
@@ -39,6 +45,11 @@ export type VpipStats = {
   foldPercent: number;
   checkHands: number;
   checkPercent: number;
+  winHands: number;
+  lossHands: number;
+  noneHands: number;
+  resolvedHands: number;
+  winRate: number;
   byPosition: Record<VpipPosition, PositionStats>;
   mostPlayedPosition?: VpipPosition;
   loosestPosition?: VpipPosition;
@@ -69,6 +80,10 @@ function statsForPosition(position: VpipPosition, records: VpipHandRecord[]): Po
   const raiseHands = positionRecords.filter((record) => record.action === "Raise").length;
   const foldHands = positionRecords.filter((record) => record.action === "Fold").length;
   const checkHands = positionRecords.filter((record) => record.action === "Check").length;
+  const winHands = positionRecords.filter((record) => record.outcome === "win").length;
+  const lossHands = positionRecords.filter((record) => record.outcome === "loss").length;
+  const noneHands = positionRecords.filter((record) => !record.outcome || record.outcome === "none").length;
+  const resolvedHands = winHands + lossHands;
 
   return {
     position,
@@ -83,6 +98,10 @@ function statsForPosition(position: VpipPosition, records: VpipHandRecord[]): Po
     raisePercent: percent(raiseHands, totalHands),
     foldHands,
     checkHands,
+    winHands,
+    lossHands,
+    noneHands,
+    winRate: percent(winHands, resolvedHands),
   };
 }
 
@@ -94,6 +113,10 @@ export function calculateVpipStats(records: VpipHandRecord[]): VpipStats {
   const raiseHands = records.filter((record) => record.action === "Raise").length;
   const foldHands = records.filter((record) => record.action === "Fold").length;
   const checkHands = records.filter((record) => record.action === "Check").length;
+  const winHands = records.filter((record) => record.outcome === "win").length;
+  const lossHands = records.filter((record) => record.outcome === "loss").length;
+  const noneHands = records.filter((record) => !record.outcome || record.outcome === "none").length;
+  const resolvedHands = winHands + lossHands;
   const byPosition = Object.fromEntries(
     VPIP_POSITIONS.map((position) => [position, statsForPosition(position, records)]),
   ) as Record<VpipPosition, PositionStats>;
@@ -116,6 +139,11 @@ export function calculateVpipStats(records: VpipHandRecord[]): VpipStats {
     foldPercent: percent(foldHands, totalHands),
     checkHands,
     checkPercent: percent(checkHands, totalHands),
+    winHands,
+    lossHands,
+    noneHands,
+    resolvedHands,
+    winRate: percent(winHands, resolvedHands),
     byPosition,
     mostPlayedPosition,
     loosestPosition,
