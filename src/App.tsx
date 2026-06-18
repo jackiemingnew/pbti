@@ -11,6 +11,7 @@ import { getPbtiProfile, pbtiProfiles, type PbtiProfile } from "./data/pbtiProfi
 import { generateDecision } from "./logic/decisionEngine";
 import { classifyPbtiProfile } from "./logic/pbtiClassifier";
 import { analyzeShowdown, cardsToText, inferGameType, parseCards } from "./logic/pokerHandEvaluator";
+import { VpipTrackerPage } from "./pages/VpipTrackerPage";
 import {
   buildQuestionRequestKey,
   getCachedQuestionSetCount,
@@ -42,7 +43,7 @@ import type {
   RecognizedPlayer,
 } from "./types";
 
-type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer" | "summary" | "profiles" | "profileDetail";
+type Page = "home" | "result" | "promptAdmin" | "photoAnalyzer" | "summary" | "profiles" | "profileDetail" | "vpipTracker";
 
 const randomItem = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 const rollDestiny = () => Math.floor(Math.random() * 100) + 1;
@@ -346,6 +347,12 @@ function App() {
     setPage("profileDetail");
   }
 
+  function openVpipTracker() {
+    clearRevealTimer();
+    setIsRevealing(false);
+    setPage("vpipTracker");
+  }
+
   function setDecisionFeedback(feedback: DecisionFeedback) {
     if (!currentDecisionId) return;
     setHistoryEntries(updateDecisionFeedback(currentDecisionId, feedback));
@@ -463,6 +470,7 @@ function App() {
                 onSelectCharacter={chooseCharacter}
                 onRandomCharacter={switchToRandomCharacter}
                 onOpenPromptAdmin={openPromptAdmin}
+                onOpenVpipTracker={openVpipTracker}
                 easterEggActive={forceEasterEgg}
                 onToggleEasterEgg={toggleEasterEgg}
               />
@@ -508,6 +516,7 @@ function App() {
             {page === "profileDetail" && selectedProfile && (
               <ProfileDetailPage profile={selectedProfile} onBack={openProfiles} />
             )}
+            {page === "vpipTracker" && <VpipTrackerPage onHome={goHome} />}
           </div>
 
           <footer className="border-t border-amber-500/20 pt-4 text-center text-xs text-zinc-500">
@@ -525,12 +534,14 @@ function HomePage({
   onSelectCharacter,
   onRandomCharacter,
   onOpenPromptAdmin,
+  onOpenVpipTracker,
   easterEggActive,
   onToggleEasterEgg,
 }: {
   onSelectCharacter: (character: Character) => void;
   onRandomCharacter: () => void;
   onOpenPromptAdmin: () => void;
+  onOpenVpipTracker: () => void;
   easterEggActive: boolean;
   onToggleEasterEgg: () => void;
 }) {
@@ -586,6 +597,22 @@ function HomePage({
           </div>
         </div>
       </div>
+
+      <button
+        onClick={onOpenVpipTracker}
+        className="group flex w-full flex-col gap-4 rounded-2xl border border-emerald-500/35 bg-zinc-950/85 p-4 text-left shadow-2xl transition hover:border-emerald-300 hover:bg-emerald-500/5 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+      >
+        <span>
+          <span className="text-xs font-black uppercase tracking-[0.24em] text-emerald-400">Live Cash Tool</span>
+          <span className="mt-1 block text-2xl font-black text-amber-100">VPIP 记录</span>
+          <span className="mt-2 block text-sm leading-6 text-zinc-400">
+            线下牌局快速记录位置和翻前行为，看看你到底入池有多高。
+          </span>
+        </span>
+        <span className="shrink-0 rounded-xl border border-emerald-400/45 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 transition group-hover:bg-emerald-300 group-hover:text-zinc-950">
+          打开记录器
+        </span>
+      </button>
 
       <CoreConceptsSection />
 
