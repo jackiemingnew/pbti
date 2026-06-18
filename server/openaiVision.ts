@@ -9,6 +9,13 @@ type VisionInput = {
 
 type OpenAIResponse = {
   output_text?: string;
+  output?: Array<{
+    content?: Array<{
+      text?: string;
+      parsed?: unknown;
+      json?: unknown;
+    }>;
+  }>;
   error?: {
     message?: string;
     code?: string;
@@ -46,10 +53,13 @@ export async function recognizePokerPhotoWithOpenAI({ apiKey, model, imageDataUr
     throw buildOpenAIError(response, payload);
   }
 
-  const parsed = parseVisionJson(payload.output_text);
+  const parsed = parseVisionPayload(payload);
   const recognition = normalizeRecognition(parsed);
   if (!recognition.players.length && !recognition.boards.length) {
-    throw new PokerVisionError("视觉模型没有读出可用牌面，请换一张更清晰的照片或手动输入。", { provider: "openai" });
+    throw new PokerVisionError("视觉模型没有读出可用牌面，请换一张更清晰的照片或手动输入。", {
+      provider: "openai",
+      code: extractOutputText(payload) ? "empty_cards" : "empty_model_output",
+    });
   }
 
   return recognition;
@@ -94,7 +104,7 @@ async function fetchOpenAI(apiKey: string, model: string | undefined, imageDataU
               {
                 type: "input_text",
                 text:
-                  "你是牌桌照片识别助手。只从图片中读取可见扑克牌，不猜不可见牌。必须返回 JSON。牌面统一为 A♠、T♥、9♦、2♣ 格式。需要识别德州扑克/奥马哈；如果出现两路或多路发牌，把每一路公共牌放入 boards。玩家手牌放入 players.holeCards；德州通常 2 张，奥马哈通常 4 张。无法确认时写入 warnings。",
+                  "你是牌桌照片识别助手。只从图片中读取可见的正面扑克牌，不猜不可见牌。必须返回 JSON。牌面统一为 A♠、T♥、9♦、2♣ 格式。需要识别德州扑克/奥马哈；如果照片是奥马哈发两路、双牌面、run it twice、多路公共牌，把每一横排或每一路公共牌分别放入 boards，例如 第一路 / 第二路。公共牌优先于玩家手牌识别；即使无法确认玩家手牌，也要返回可见公共牌，并把不确定项写入 warnings。玩家手牌放入 players.holeCards；德州通常 2 张，奥马哈通常 4 张。不要因为牌被旋转、斜放或部分遮挡就返回空数组。",
               },
             ],
           },
@@ -106,6 +116,11 @@ async function fetchOpenAI(apiKey: string, model: string | undefined, imageDataU
                 text: JSON.stringify({
                   task: "recognize_poker_table_photo",
                   requestedMode: mode,
+                  specialCases: [
+                    "Omaha double-board / 两路牌：通常有两行公共牌，请分别输出为 boards[0] 和 boards[1]",
+                    "如果牌桌上有多组正面牌，先识别所有公共牌，再识别靠近玩家座位的手牌",
+                    "图片中没有明确玩家手牌也可以 players 为空，但 boards 不能漏掉可见公共牌",
+                  ],
                   outputRules: {
                     gameType: "holdem | omaha | unknown",
                     confidence: "0-1 number",
@@ -117,7 +132,7 @@ async function fetchOpenAI(apiKey: string, model: string | undefined, imageDataU
                   },
                 }),
               },
-              { type: "input_image", image_url: imageDataUrl },
+              { type: "input_image", image_url: imageDataUrl, detail: "high" },
             ],
           },
         ],
@@ -178,6 +193,13 @@ async function fetchOpenAI(apiKey: string, model: string | undefined, imageDataU
   }
 }
 
+function parseVisionPayload(payload: OpenAIResponse) {
+  for (const parsed of extractParsedObjects(payload)) {
+    if (parsed && typeof parsed === "object") return parsed as Partial<PokerPhotoRecognition>;
+  }
+  return parseVisionJson(extractOutputText(payload));
+}
+
 function parseVisionJson(outputText: string | undefined) {
   if (!outputText) return {};
   try {
@@ -187,6 +209,31 @@ function parseVisionJson(outputText: string | undefined) {
     if (!match) return {};
     return JSON.parse(match[0]) as Partial<PokerPhotoRecognition>;
   }
+}
+
+function extractOutputText(payload: OpenAIResponse) {
+  if (typeof payload.output_text === "string") return payload.output_text;
+  const output = Array.isArray(payload.output) ? payload.output : [];
+  for (const item of output) {
+    const content = Array.isArray(item.content) ? item.content : [];
+    for (const part of content) {
+      if (typeof part.text === "string") return part.text;
+    }
+  }
+  return "";
+}
+
+function extractParsedObjects(payload: OpenAIResponse) {
+  const parsedObjects: unknown[] = [];
+  const output = Array.isArray(payload.output) ? payload.output : [];
+  for (const item of output) {
+    const content = Array.isArray(item.content) ? item.content : [];
+    for (const part of content) {
+      if (part.parsed && typeof part.parsed === "object") parsedObjects.push(part.parsed);
+      if (part.json && typeof part.json === "object") parsedObjects.push(part.json);
+    }
+  }
+  return parsedObjects;
 }
 
 function normalizeRecognition(input: Partial<PokerPhotoRecognition>): PokerPhotoRecognition {

@@ -407,20 +407,20 @@ function App() {
     <div className="min-h-screen overflow-hidden bg-zinc-950 text-zinc-100">
       <div className="casino-bg min-h-screen">
         <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-3 sm:gap-3 sm:pb-4">
             <button onClick={goHome} className="flex min-w-0 items-center gap-3 text-left">
-              <span className="grid h-11 w-11 place-items-center rounded-lg border border-amber-400/60 bg-zinc-950 text-xl text-amber-200 shadow-gold">
+              <span className="grid h-10 w-10 place-items-center rounded-lg border border-amber-400/60 bg-zinc-950 text-xl text-amber-200 shadow-gold sm:h-11 sm:w-11">
                 ♠
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-black tracking-[0.24em] text-amber-500">PBTI TEST</span>
-                <span className="block truncate text-lg font-black text-amber-100">PBTI：牌桌行为人格测试</span>
+                <span className="block text-[10px] font-black tracking-[0.2em] text-amber-500 sm:text-sm sm:tracking-[0.24em]">PBTI TEST</span>
+                <span className="block truncate text-base font-black text-amber-100 sm:text-lg">PBTI：牌桌行为人格测试</span>
               </span>
             </button>
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
               <button
                 onClick={openSummary}
-                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                className={`rounded-full border px-2.5 py-1.5 text-xs font-bold transition sm:px-4 sm:py-2 sm:text-sm ${
                   page === "summary"
                     ? "border-amber-300 bg-amber-300 text-zinc-950"
                     : "border-amber-400/40 bg-amber-500/10 text-amber-100 hover:bg-amber-300 hover:text-zinc-950"
@@ -430,7 +430,7 @@ function App() {
               </button>
               <button
                 onClick={openProfiles}
-                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                className={`rounded-full border px-2.5 py-1.5 text-xs font-bold transition sm:px-4 sm:py-2 sm:text-sm ${
                   page === "profiles" || page === "profileDetail"
                     ? "border-fuchsia-300 bg-fuchsia-300 text-zinc-950"
                     : "border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-100 hover:bg-fuchsia-300 hover:text-zinc-950"
@@ -440,7 +440,7 @@ function App() {
               </button>
               <button
                 onClick={openPhotoAnalyzer}
-                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                className={`rounded-full border px-2.5 py-1.5 text-xs font-bold transition sm:px-4 sm:py-2 sm:text-sm ${
                   page === "photoAnalyzer"
                     ? "border-cyan-300 bg-cyan-300 text-zinc-950"
                     : "border-cyan-400/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-300 hover:text-zinc-950"
@@ -474,6 +474,8 @@ function App() {
                 onRandomCharacter={switchToRandomCharacter}
                 onOpenPromptAdmin={openPromptAdmin}
                 onOpenVpipTracker={openVpipTracker}
+                onOpenSummary={openSummary}
+                onOpenProfiles={openProfiles}
                 easterEggActive={forceEasterEgg}
                 onToggleEasterEgg={toggleEasterEgg}
               />
@@ -533,11 +535,19 @@ function App() {
 
 // ====================== HomePage ======================
 
+const toolToneClass: Record<"emerald" | "amber" | "fuchsia", string> = {
+  emerald: "border-emerald-500/35 text-emerald-100 hover:border-emerald-300 hover:bg-emerald-500/5",
+  amber: "border-amber-500/35 text-amber-100 hover:border-amber-300 hover:bg-amber-500/5",
+  fuchsia: "border-fuchsia-500/35 text-fuchsia-100 hover:border-fuchsia-300 hover:bg-fuchsia-500/5",
+};
+
 function HomePage({
   onSelectCharacter,
   onRandomCharacter,
   onOpenPromptAdmin,
   onOpenVpipTracker,
+  onOpenSummary,
+  onOpenProfiles,
   easterEggActive,
   onToggleEasterEgg,
 }: {
@@ -545,54 +555,87 @@ function HomePage({
   onRandomCharacter: () => void;
   onOpenPromptAdmin: () => void;
   onOpenVpipTracker: () => void;
+  onOpenSummary: () => void;
+  onOpenProfiles: () => void;
   easterEggActive: boolean;
   onToggleEasterEgg: () => void;
 }) {
   const homeQuote = useMemo(() => randomCopy(homeQuotes), []);
+  const toolCards = [
+    {
+      title: "VPIP 记录",
+      eyebrow: "Live Tracker",
+      description: "线下牌局快速点位置和行动，记录今晚到底入池多高。",
+      action: "打开",
+      tone: "emerald",
+      onClick: onOpenVpipTracker,
+    },
+    {
+      title: "战绩总结",
+      eyebrow: "Local Report",
+      description: "查看本地决策、输赢反馈、今日状态和长期画像。",
+      action: "查看",
+      tone: "amber",
+      onClick: onOpenSummary,
+    },
+    {
+      title: "人格图鉴",
+      eyebrow: "PBTI Atlas",
+      description: "浏览 8 种 PBTI 类型、代号、头像和常见死法。",
+      action: "进入",
+      tone: "fuchsia",
+      onClick: onOpenProfiles,
+    },
+  ] as const;
 
   return (
-    <section className="w-full space-y-6 sm:space-y-10">
-      <div className="grid items-center gap-6 lg:gap-8 lg:grid-cols-[1fr_1fr]">
-        <div className="max-w-3xl">
-          <p className="text-sm font-black tracking-[0.18em] text-amber-500">Poker Behavior Type Indicator</p>
-          <h1 className="mt-4 text-4xl font-black leading-tight text-amber-100 sm:text-6xl lg:text-7xl">PBTI：牌桌行为人格测试</h1>
-          <p className="mt-4 text-lg leading-8 text-zinc-300">鸡稳 / 豪谨 / 术风，三轴一测，看看你在牌桌上到底是哪种行为人格。</p>
-          <blockquote className="mt-5 max-w-2xl border-l-2 border-amber-400/70 pl-4 text-sm font-bold leading-6 text-amber-100/85 sm:text-base">
+    <section className="w-full space-y-5 sm:space-y-8">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(132px,0.86fr)] items-start gap-3 sm:gap-5">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black tracking-[0.18em] text-amber-500 sm:text-sm">Poker Behavior Type Indicator</p>
+          <h1 className="mt-2 text-[2rem] font-black leading-[1.05] text-amber-100 sm:text-5xl">PBTI：牌桌行为人格测试</h1>
+          <p className="mt-3 text-sm font-bold leading-6 text-zinc-300 sm:text-lg sm:leading-8">鸡稳 / 豪谨 / 术风，看看你在牌桌上到底是哪种行为人格。</p>
+          <blockquote className="mt-3 border-l-2 border-amber-400/70 pl-3 text-xs font-bold leading-5 text-amber-100/85 sm:mt-5 sm:text-base sm:leading-6">
             “{homeQuote}”
           </blockquote>
-          <p className="mt-4 max-w-2xl leading-7 text-zinc-400">
-            鸡 / 稳：你是想主动开火，还是先保住筹码。
-            <br />
-            豪 / 谨：你是敢花钱看结局，还是更重视风险控制。
-            <br />
-            术 / 风：你是相信范围赔率，还是相信手感风向。
-            <br />
-            选择角色，回答几个问题，系统会生成你的牌桌行动：过牌/弃牌 / 跟注 / 加注。
-          </p>
+          <div className="mt-3 space-y-1.5 text-xs leading-5 text-zinc-400 sm:text-sm sm:leading-6">
+            <p><span className="font-black text-amber-200">鸡 / 稳</span>：主动开火，还是先保住筹码。</p>
+            <p><span className="font-black text-amber-200">豪 / 谨</span>：花钱看结局，还是重视风险控制。</p>
+            <p><span className="font-black text-amber-200">术 / 风</span>：相信范围赔率，还是相信手感风向。</p>
+          </div>
           <button
             onClick={onRandomCharacter}
-            className="mt-6 rounded-xl border border-amber-200 bg-amber-400 px-6 py-3 font-black text-zinc-950 shadow-gold transition hover:scale-105 hover:bg-amber-300"
+            className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-400 px-4 py-3 text-sm font-black text-zinc-950 shadow-gold transition hover:scale-105 hover:bg-amber-300 sm:w-auto sm:px-6"
           >
             随机人格开局
           </button>
         </div>
 
-        <div className="relative mx-auto w-full max-w-xl rounded-2xl border border-amber-500/50 bg-zinc-950/80 p-3 shadow-2xl sm:rounded-3xl sm:p-5">
-          <div className="absolute inset-0 rounded-[1.2rem] border border-amber-400/20 sm:inset-4 sm:rounded-[1.4rem]" />
+        <div className="relative w-full rounded-2xl border border-amber-500/45 bg-zinc-950/82 p-2 shadow-2xl sm:p-4">
           <div className="relative z-10">
-            <p className="text-sm font-bold text-amber-400">PBTI Characters</p>
-            <h2 className="mt-2 text-3xl font-black text-amber-100">选择人格</h2>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5 lg:grid-cols-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-500">Masks</p>
+                <h2 className="text-lg font-black text-amber-100 sm:text-2xl">选人格</h2>
+              </div>
+              <button
+                onClick={onRandomCharacter}
+                className="rounded-lg border border-amber-400/45 px-2 py-1 text-[10px] font-black text-amber-100 transition hover:bg-amber-300 hover:text-zinc-950 sm:px-3 sm:py-1.5 sm:text-xs"
+              >
+                随机
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {characters.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => onSelectCharacter(item)}
-                  className="group rounded-2xl border border-amber-500/35 bg-zinc-900/80 p-3 text-left transition hover:-translate-y-1 hover:border-amber-300"
+                  className="group min-w-0 rounded-xl border border-amber-500/30 bg-zinc-900/82 p-2 text-left transition hover:-translate-y-1 hover:border-amber-300"
                 >
-                  <CharacterAvatar character={item} size="small" />
-                  <div className="mt-3">
-                    <p className="font-black text-amber-100">{item.name}</p>
-                    <p className="text-xs text-amber-400">{item.archetype}</p>
+                  <CharacterAvatar character={item} size="mini" />
+                  <div className="mt-2 min-w-0">
+                    <p className="truncate text-xs font-black text-amber-100 sm:text-sm">{item.name}</p>
+                    <p className="truncate text-[10px] text-amber-400">{item.archetype}</p>
                   </div>
                 </button>
               ))}
@@ -601,21 +644,22 @@ function HomePage({
         </div>
       </div>
 
-      <button
-        onClick={onOpenVpipTracker}
-        className="group flex w-full flex-col gap-4 rounded-2xl border border-emerald-500/35 bg-zinc-950/85 p-4 text-left shadow-2xl transition hover:border-emerald-300 hover:bg-emerald-500/5 sm:flex-row sm:items-center sm:justify-between sm:p-5"
-      >
-        <span>
-          <span className="text-xs font-black uppercase tracking-[0.24em] text-emerald-400">Live Cash Tool</span>
-          <span className="mt-1 block text-2xl font-black text-amber-100">VPIP 记录</span>
-          <span className="mt-2 block text-sm leading-6 text-zinc-400">
-            线下牌局快速记录位置和翻前行为，看看你到底入池有多高。
-          </span>
-        </span>
-        <span className="shrink-0 rounded-xl border border-emerald-400/45 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 transition group-hover:bg-emerald-300 group-hover:text-zinc-950">
-          打开记录器
-        </span>
-      </button>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        {toolCards.map((card) => (
+          <button
+            key={card.title}
+            onClick={card.onClick}
+            className={`group min-w-0 rounded-2xl border bg-zinc-950/85 p-3 text-left shadow-2xl transition hover:-translate-y-0.5 sm:p-4 ${toolToneClass[card.tone]}`}
+          >
+            <span className="block truncate text-[10px] font-black uppercase tracking-[0.16em] opacity-80 sm:text-xs">{card.eyebrow}</span>
+            <span className="mt-1 block text-base font-black text-amber-100 sm:text-2xl">{card.title}</span>
+            <span className="mt-2 line-clamp-3 block text-xs leading-5 text-zinc-400 sm:text-sm sm:leading-6">{card.description}</span>
+            <span className="mt-3 inline-flex rounded-lg border border-current px-3 py-1.5 text-xs font-black transition group-hover:bg-current">
+              <span className="group-hover:text-zinc-950">{card.action}</span>
+            </span>
+          </button>
+        ))}
+      </div>
 
       <CoreConceptsSection />
 

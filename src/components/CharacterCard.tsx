@@ -63,8 +63,15 @@ export function CharacterCard({ character, selected, onSelect }: CharacterCardPr
   );
 }
 
-export function CharacterAvatar({ character, size = "card" }: { character: Character; size?: "card" | "small" | "large" }) {
-  const sizeClass = size === "large" ? "h-32 w-32 text-5xl" : size === "small" ? "h-14 w-14 text-2xl" : "h-20 w-20 text-4xl";
+export function CharacterAvatar({ character, size = "card" }: { character: Character; size?: "card" | "mini" | "small" | "large" }) {
+  const sizeClass =
+    size === "large"
+      ? "h-32 w-32 text-5xl"
+      : size === "small"
+        ? "h-14 w-14 text-2xl"
+        : size === "mini"
+          ? "h-9 w-9 text-base"
+          : "h-20 w-20 text-4xl";
 
   return (
     <div
