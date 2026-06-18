@@ -556,16 +556,16 @@ function HomePage({
         <div className="max-w-3xl">
           <p className="text-sm font-black tracking-[0.18em] text-amber-500">Poker Behavior Type Indicator</p>
           <h1 className="mt-4 text-4xl font-black leading-tight text-amber-100 sm:text-6xl lg:text-7xl">PBTI：牌桌行为人格测试</h1>
-          <p className="mt-4 text-lg leading-8 text-zinc-300">鸡 / 钱 / 术，三维一测，看看你在牌桌上到底是哪种人。</p>
+          <p className="mt-4 text-lg leading-8 text-zinc-300">鸡稳 / 豪谨 / 术风，三轴一测，看看你在牌桌上到底是哪种行为人格。</p>
           <blockquote className="mt-5 max-w-2xl border-l-2 border-amber-400/70 pl-4 text-sm font-bold leading-6 text-amber-100/85 sm:text-base">
             “{homeQuote}”
           </blockquote>
           <p className="mt-4 max-w-2xl leading-7 text-zinc-400">
-            鸡：你有多想偷。
+            鸡 / 稳：你是想主动开火，还是先保住筹码。
             <br />
-            钱：你有多敢看。
+            豪 / 谨：你是敢花钱看结局，还是更重视风险控制。
             <br />
-            术：你有多会把冲动包装成理论。
+            术 / 风：你是相信范围赔率，还是相信手感风向。
             <br />
             选择角色，回答几个问题，系统会生成你的牌桌行动：过牌/弃牌 / 跟注 / 加注。
           </p>
@@ -648,31 +648,27 @@ function HomePage({
 function CoreConceptsSection() {
   const concepts = [
     {
-      emoji: "🐔",
-      label: "鸡",
-      title: "偷鸡欲 (Chicken)",
-      description: "你有多想偷。鸡瘾值越高，越容易主动施压、讲故事、把空气牌演成长篇小说。",
+      label: "鸡 / 稳",
+      title: "进攻轴",
+      description: "鸡代表主动、偷鸡、诈唬、讲故事，喜欢 bet / raise。稳代表克制、控池、价值下注，少犯病，不乱开火。",
       color: "border-red-500/40",
     },
     {
-      emoji: "💰",
-      label: "钱",
-      title: "钞能力 (Money)",
-      description: "你有多敢看。钱值越高，越能承受波动、跟注压力、用筹码买下一幕剧情。",
+      label: "豪 / 谨",
+      title: "波动轴",
+      description: "豪代表敢看、敢扛波动，愿意用筹码买剧情。谨代表谨慎用筹，不轻易把自己放进大底池。",
       color: "border-amber-500/40",
     },
     {
-      emoji: "🧠",
-      label: "术",
-      title: "技术流 (Skill)",
-      description: "你有多会把冲动包装成理论。术越高，越擅长用范围、赔率和尺度解释自己的选择。",
+      label: "术 / 风",
+      title: "解释轴",
+      description: "术代表范围、赔率、下注结构和技术解释。风代表风向、手感、天命、上风下风，以及一点牌桌玄学。",
       color: "border-cyan-500/40",
     },
     {
-      emoji: "🎲",
       label: "命",
       title: "天命人 (Destiny)",
-      description: "特殊角色不显示三维，每轮由随机数驱动。答案会给命运一点离谱解释，纯属娱乐。",
+      description: "天命人悟空不属于三轴。他每手会触发命运掷骰，结果不稳定，但非常适合线下朋友局整活。",
       color: "border-lime-500/40",
     },
   ];
@@ -682,7 +678,7 @@ function CoreConceptsSection() {
       <p className="text-sm font-black uppercase tracking-[0.3em] text-amber-500">Core Concepts</p>
       <h2 className="mt-2 text-3xl font-black text-amber-100">核心概念</h2>
       <p className="mt-3 max-w-2xl text-zinc-400">
-        PBTI 不评估真实牌技，而是用三种维度描述你面对决策时的本能倾向。
+        PBTI 不评估真实牌技，而是把你的牌桌行为拆成三组对照轴。长期画像会组合成类似「鸡豪术｜三街鬼才」这样的类型。
       </p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {concepts.map((c) => (
@@ -690,8 +686,8 @@ function CoreConceptsSection() {
             key={c.label}
             className={`rounded-2xl border ${c.color} bg-zinc-900/80 p-4 transition hover:-translate-y-1`}
           >
-            <span className="text-2xl">{c.emoji}</span>
-            <h3 className="mt-2 font-black text-amber-100">{c.title}</h3>
+            <span className="rounded-full border border-amber-400/25 bg-black/30 px-3 py-1 text-sm font-black text-amber-200">{c.label}</span>
+            <h3 className="mt-3 font-black text-amber-100">{c.title}</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-300">{c.description}</p>
           </div>
         ))}
